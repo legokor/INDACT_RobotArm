@@ -5,8 +5,8 @@
  * @date Jan 20, 2023
  * @author Varga Peter
  *******************************************************************************
- * @brief
- * This program provides wireless controls for the robot arm.
+ * @brief This program provides wireless controls for the robot arm.
+ * @details 
  *******************************************************************************
  */
 
@@ -15,7 +15,7 @@
 #include "robotkar_gui_html.h"
 #include "control_codes.h"
 
-// #define DEBUG 0
+#define DEBUG 0
 
 #ifndef DEF_AP_SSID
 #define DEF_AP_SSID "INDACT_robotkar"
@@ -25,6 +25,8 @@
 #define EXT_LED 1
 #define MSG_BUFFER_SIZE 64
 #define WIFI_STRING_SIZE MSG_BUFFER_SIZE
+
+#define CONNECT_TIMEOUT_MS 30000
 
 /** @brief Buffer for the incoming messages. */
 char msg_buffer[MSG_BUFFER_SIZE] = { 0 };
@@ -93,22 +95,27 @@ void handle_messages(void) {
   if (strcmp_P(msg_buffer, PSTR("RST")) == 0) {
     sendOK();
     ESP.reset();
+
   } else if (strcmp_P(msg_buffer, PSTR("CON_STA")) == 0) {
     sendOK();
     connectToNetwork();
+
   } else if (strcmp_P(msg_buffer, PSTR("SET_AP")) == 0) {
     sendOK();
     setupAccessPoint();
+
   } else if (strcmp_P(msg_buffer, PSTR("SSID")) == 0) {
     sendOK();
     // Receive the new SSID
     catchMessage = true;
     messageTo = ssid;
+
   } else if (strcmp_P(msg_buffer, PSTR("PSW")) == 0) {
     sendOK();
     // Receive the new password
     catchMessage = true;
     messageTo = password;
+
   } else if (strcmp_P(msg_buffer, PSTR("STAT")) == 0) {
     sendOK();
     // Receive the new status
@@ -164,6 +171,7 @@ void handle_clients(void) {
   static bool b;
   if (b) {
     client.print(F("UwU"));
+
   } else {
     client.print(F("OwO"));
   }
@@ -175,31 +183,44 @@ void handle_clients(void) {
 
 /**
  * @brief Connect to an existing WiFi network, and print the IP address on
- *        Serial.
+ *        Serial. If the connection attempt is not successful, then print "NOC"
+ *        on Serial.
  */
 void connectToNetwork(void) {
-  // If the SSID and password is not set, then do nothing.
+  // If the SSID and password is not set, then do nothing and notify the
+  // controler about the unsuccessful connection
   if ((ssid[0] == 0) || (password[0] == 0)) {
+    Serial.println(F("NOC"));
     return;
   }
 
-  // Give visible feedback to the user about the connection
-  digitalWrite(EXT_LED, HIGH);
-
+  // Start the connection process
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(250);
-    digitalWrite(EXT_LED, LOW);
+  // Wait for connection and give visible feedback to the user about connecting process
+  unsigned long start_time = millis();
+  while ((WiFi.status() != WL_CONNECTED)
+         && (millis() - start_time) <= CONNECT_TIMEOUT_MS) {
+
     delay(250);
     digitalWrite(EXT_LED, HIGH);
+    delay(250);
+    digitalWrite(EXT_LED, LOW);
+
 #ifdef DEBUG
     Serial.print(". ");
 #endif
   }
 
-  Serial.println(WiFi.localIP());
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println(WiFi.localIP());
+    digitalWrite(EXT_LED, HIGH);
+
+  } else {
+    WiFi.disconnect();
+    Serial.println(F("NOC"));
+  }
 
 #ifdef DEBUG
   WiFi.printDiag(Serial);
@@ -208,7 +229,8 @@ void connectToNetwork(void) {
 }
 
 /**
- * @brief Create a soft access point, and print the IP address on Serial.
+ * @brief Create a soft access point, and print the IP address on Serial. If
+ *        the connection attempt is not successful, then print "NOC" on Serial.
  */
 void setupAccessPoint(void) {
   WiFi.mode(WIFI_AP);
@@ -216,6 +238,10 @@ void setupAccessPoint(void) {
   if (WiFi.softAP((ssid[0] == 0) ? DEF_AP_SSID : ssid,
                   (password[0] == 0) ? DEF_AP_PSW : password)) {
     Serial.println(WiFi.softAPIP());
+    digitalWrite(EXT_LED, HIGH);
+
+  } else {
+    Serial.println(F("NOC"));
   }
 
 #ifdef DEBUG
