@@ -12,10 +12,12 @@
 
 #include <ESP8266WiFi.h>
 #include <string.h>
+
 #include "robotkar_gui_html.h"
 #include "control_codes.h"
+#include "protocols.h"
 
-#define DEBUG 0
+// #define DEBUG 0
 
 #ifndef DEF_AP_SSID
 #define DEF_AP_SSID "INDACT_robotkar"
@@ -23,8 +25,8 @@
 #endif
 
 #define EXT_LED 1
-#define MSG_BUFFER_SIZE 64
-#define WIFI_STRING_SIZE MSG_BUFFER_SIZE
+#define MSG_BUFFER_SIZE (128 + 2)
+#define WIFI_STRING_SIZE 32
 
 #define CONNECT_TIMEOUT_MS 30000
 
@@ -86,38 +88,43 @@ void handle_messages(void) {
   static char* messageTo;
   if (catchMessage) {
     catchMessage = false;
-    strcpy(messageTo, msg_buffer);
 
-    sendOK();
+    if ((messageTo == ssid) || (messageTo == password) && (strlen(msg_buffer) + 1 >= WIFI_STRING_SIZE)) {
+      sendFail();
+      return;
+    }
+
+    strcpy(messageTo, msg_buffer);
+    sendConfirm();
     return;
   }
 
-  if (strcmp_P(msg_buffer, PSTR("RST")) == 0) {
-    sendOK();
+  if (strcmp_P(msg_buffer, PSTR(STR_RESET)) == 0) {
+    sendConfirm();
     ESP.reset();
 
-  } else if (strcmp_P(msg_buffer, PSTR("CON_STA")) == 0) {
-    sendOK();
+  } else if (strcmp_P(msg_buffer, PSTR(STR_CONNECT_STATION)) == 0) {
+    sendConfirm();
     connectToNetwork();
 
-  } else if (strcmp_P(msg_buffer, PSTR("SET_AP")) == 0) {
-    sendOK();
+  } else if (strcmp_P(msg_buffer, PSTR(STR_SETUP_ACCESS_POINT)) == 0) {
+    sendConfirm();
     setupAccessPoint();
 
-  } else if (strcmp_P(msg_buffer, PSTR("SSID")) == 0) {
-    sendOK();
+  } else if (strcmp_P(msg_buffer, PSTR(STR_SSID)) == 0) {
+    sendConfirm();
     // Receive the new SSID
     catchMessage = true;
     messageTo = ssid;
 
-  } else if (strcmp_P(msg_buffer, PSTR("PSW")) == 0) {
-    sendOK();
+  } else if (strcmp_P(msg_buffer, PSTR(STR_PASSWORD)) == 0) {
+    sendConfirm();
     // Receive the new password
     catchMessage = true;
     messageTo = password;
 
-  } else if (strcmp_P(msg_buffer, PSTR("STAT")) == 0) {
-    sendOK();
+  } else if (strcmp_P(msg_buffer, PSTR(STR_STATUS)) == 0) {
+    sendConfirm();
     // Receive the new status
     catchMessage = true;
     messageTo = status;
@@ -183,14 +190,14 @@ void handle_clients(void) {
 
 /**
  * @brief Connect to an existing WiFi network, and print the IP address on
- *        Serial. If the connection attempt is not successful, then print "NOC"
- *        on Serial.
+ *        Serial. If the connection attempt is not successful, then print a "no
+ *        connection" message on Serial.
  */
 void connectToNetwork(void) {
   // If the SSID and password is not set, then do nothing and notify the
-  // controler about the unsuccessful connection
+  // controller about the unsuccessful connection
   if ((ssid[0] == 0) || (password[0] == 0)) {
-    Serial.println(F("NOC"));
+    sendFail();
     return;
   }
 
@@ -219,7 +226,7 @@ void connectToNetwork(void) {
 
   } else {
     WiFi.disconnect();
-    Serial.println(F("NOC"));
+    sendFail();
   }
 
 #ifdef DEBUG
@@ -230,7 +237,8 @@ void connectToNetwork(void) {
 
 /**
  * @brief Create a soft access point, and print the IP address on Serial. If
- *        the connection attempt is not successful, then print "NOC" on Serial.
+ *        the connection attempt is not successful, then print a "no
+ *        connection" message on Serial.
  */
 void setupAccessPoint(void) {
   WiFi.mode(WIFI_AP);
@@ -241,7 +249,7 @@ void setupAccessPoint(void) {
     digitalWrite(EXT_LED, HIGH);
 
   } else {
-    Serial.println(F("NOC"));
+    sendFail();
   }
 
 #ifdef DEBUG
@@ -286,8 +294,15 @@ bool receiveMessage(char* buffer, uint32_t size) {
 }
 
 /**
- * @brief Send a confirmation message ("OK\r\n") trough Serial.
+ * @brief Send a confirmation message trough Serial.
  */
-inline void sendOK(void) {
-  Serial.print(F("OK\r\n"));
+inline void sendConfirm(void) {
+  Serial.println(F(STR_CONFIRM));
+}
+
+/**
+ * @brief Send a notification about failure through Serial.
+ */
+inline void sendFail(void) {
+  Serial.println(F(STR_FAIL));
 }
