@@ -5,14 +5,13 @@
  * @date Jan 22, 2023
  * @author Varga Peter
  *******************************************************************************
- * @brief
- * This file implements the functions of "control_codes.h".
+ * @brief This file implements the functions of "control_codes.h".
  *******************************************************************************
  */
 
 #include "control_codes.h"
 
-RequestType matchRequest(String req) {
+RequestType matchRequest(const String& req) {
   if (req.indexOf("/ ") != -1) {
     return RequestType::INDEX;
   }
@@ -25,66 +24,95 @@ RequestType matchRequest(String req) {
   char axis = req[index + 4];
   char direction = req[index + 5];
   switch (axis) {
-    case 'z':
+    case 'a':
       switch (direction) {
         case 'm':
-          return RequestType::Z_MINUS;
+          return RequestType::A_MINUS;
+
         case 'p':
-          return RequestType::Z_PLUS;
+          return RequestType::A_PLUS;
+
         default:
           return RequestType::INVALID;
       }
-    case 'f':
+
+    case 'b':
       switch (direction) {
         case 'm':
-          return RequestType::PHI_MINUS;
+          return RequestType::B_MINUS;
+
         case 'p':
-          return RequestType::PHI_PLUS;
+          return RequestType::B_PLUS;
+
         default:
           return RequestType::INVALID;
       }
-    case 'r':
+
+    case 'c':
       switch (direction) {
         case 'm':
-          return RequestType::R_MINUS;
+          return RequestType::C_MINUS;
+
         case 'p':
-          return RequestType::R_PLUS;
+          return RequestType::C_PLUS;
+
         default:
           return RequestType::INVALID;
       }
+
     case 'h':
-      if (direction != 'o') {
+      if (direction != 'x') {
         return RequestType::INVALID;
       }
+
       return RequestType::HOME;
+
+    case 'k':
+      if (direction != 'x') {
+        return RequestType::INVALID;
+      }
+
+      return RequestType::COORD_CHANGE;
+
     default:
       return RequestType::INVALID;
   }
 }
 
-void requestToMessage(RequestType type, char *str) {
+void requestToMessage(RequestType type, char* str) {
   switch (type) {
-    case RequestType::Z_PLUS:
-      strcpy_P(str, PSTR("zp\r\n"));
+    case RequestType::A_PLUS:
+      strcpy_P(str, PSTR("ap\r\n"));
       break;
-    case RequestType::Z_MINUS:
-      strcpy_P(str, PSTR("zm\r\n"));
+
+    case RequestType::A_MINUS:
+      strcpy_P(str, PSTR("am\r\n"));
       break;
-    case RequestType::PHI_PLUS:
-      strcpy_P(str, PSTR("fp\r\n"));
+
+    case RequestType::B_PLUS:
+      strcpy_P(str, PSTR("bp\r\n"));
       break;
-    case RequestType::PHI_MINUS:
-      strcpy_P(str, PSTR("fm\r\n"));
+
+    case RequestType::B_MINUS:
+      strcpy_P(str, PSTR("bm\r\n"));
       break;
-    case RequestType::R_PLUS:
-      strcpy_P(str, PSTR("rp\r\n"));
+
+    case RequestType::C_PLUS:
+      strcpy_P(str, PSTR("cp\r\n"));
       break;
-    case RequestType::R_MINUS:
-      strcpy_P(str, PSTR("rm\r\n"));
+
+    case RequestType::C_MINUS:
+      strcpy_P(str, PSTR("cm\r\n"));
       break;
+
     case RequestType::HOME:
-      strcpy_P(str, PSTR("ho\r\n"));
+      strcpy_P(str, PSTR("hx\r\n"));
       break;
+
+    case RequestType::COORD_CHANGE:
+      strcpy_P(str, PSTR("kx\r\n"));
+      break;
+
     default:
       strcpy_P(str, PSTR("00\r\n"));
   }

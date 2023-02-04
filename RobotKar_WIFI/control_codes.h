@@ -5,9 +5,8 @@
  * @date Jan 22, 2023
  * @author Varga Peter
  *******************************************************************************
- * @brief
- * This file provides ways to process an incoming request from a client, and to
- * communicate with the controller.
+ * @brief This file provides ways to process an incoming request from a client,
+ *        and to communicate with the controller.
  *******************************************************************************
  */
 
@@ -23,13 +22,14 @@
 enum class RequestType {
   INVALID,
   INDEX,
-  Z_PLUS,
-  Z_MINUS,
-  PHI_PLUS,
-  PHI_MINUS,
-  R_PLUS,
-  R_MINUS,
-  HOME
+  A_PLUS,
+  A_MINUS,
+  B_PLUS,
+  B_MINUS,
+  C_PLUS,
+  C_MINUS,
+  HOME,
+  COORD_CHANGE
 };
 
 /**
@@ -38,13 +38,13 @@ enum class RequestType {
  * @return Type of the request, can be anything specified in the RequestType
  *        enum
  */
-RequestType matchRequest(String req);
+RequestType matchRequest(const String& req);
 
 /**
  * @brief Prepares a message containing the type of a request.
  * @param type Type of the request
  * @param str Place of the new message (the size has to be at least 5 char)
  */
-void requestToMessage(RequestType type, char *str);
+void requestToMessage(RequestType type, char* str);
 
 #endif /* CONTROL_CODES_H_ */
