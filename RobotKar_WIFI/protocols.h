@@ -38,10 +38,34 @@
 
 /**@{*/
 /**
+ * @brief The sizes of the responses and requests that the WiFi module can send
+ *        to the controller.
+ */
+#define MODULE_RESPONSE_SIZE 2
+#define MODULE_REQUEST_SIZE 2
+/**@}*/
+
+/**@{*/
+/**
  * @brief Response messages from the WiFi module to the controller.
  */
 #define STR_CONFIRM "OK"
 #define STR_FAIL "FA"
+/**@}*/
+
+/**@{*/
+/**
+ * @brief Request messages from the WiFi module to the controller.
+ */
+#define STR_AXIS_A_PLUS "ap"
+#define STR_AXIS_A_MINUS "am"
+#define STR_AXIS_B_PLUS "bp"
+#define STR_AXIS_B_MINUS "bm"
+#define STR_AXIS_C_PLUS "cp"
+#define STR_AXIS_C_MINUS "cm"
+#define STR_HOMING "hx"
+#define STR_CHANGE_COORDINATES "kx"
+#define STR_ERROR "00"
 /**@}*/
 
 #endif /* PROTOCOLS_H_ */

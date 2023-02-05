@@ -10,6 +10,7 @@
  */
 
 #include "control_codes.h"
+#include "protocols.h"
 
 RequestType matchRequest(const String& req) {
   if (req.indexOf("/ ") != -1) {
@@ -82,38 +83,38 @@ RequestType matchRequest(const String& req) {
 void requestToMessage(RequestType type, char* str) {
   switch (type) {
     case RequestType::A_PLUS:
-      strcpy_P(str, PSTR("ap\r\n"));
+      strcpy_P(str, PSTR(STR_AXIS_A_PLUS));
       break;
 
     case RequestType::A_MINUS:
-      strcpy_P(str, PSTR("am\r\n"));
+      strcpy_P(str, PSTR(STR_AXIS_A_MINUS));
       break;
 
     case RequestType::B_PLUS:
-      strcpy_P(str, PSTR("bp\r\n"));
+      strcpy_P(str, PSTR(STR_AXIS_B_PLUS));
       break;
 
     case RequestType::B_MINUS:
-      strcpy_P(str, PSTR("bm\r\n"));
+      strcpy_P(str, PSTR(STR_AXIS_B_MINUS));
       break;
 
     case RequestType::C_PLUS:
-      strcpy_P(str, PSTR("cp\r\n"));
+      strcpy_P(str, PSTR(STR_AXIS_C_PLUS));
       break;
 
     case RequestType::C_MINUS:
-      strcpy_P(str, PSTR("cm\r\n"));
+      strcpy_P(str, PSTR(STR_AXIS_C_MINUS));
       break;
 
     case RequestType::HOME:
-      strcpy_P(str, PSTR("hx\r\n"));
+      strcpy_P(str, PSTR(STR_HOMING));
       break;
 
     case RequestType::COORD_CHANGE:
-      strcpy_P(str, PSTR("kx\r\n"));
+      strcpy_P(str, PSTR(STR_CHANGE_COORDINATES));
       break;
 
     default:
-      strcpy_P(str, PSTR("00\r\n"));
+      strcpy_P(str, PSTR(STR_ERROR));
   }
 }

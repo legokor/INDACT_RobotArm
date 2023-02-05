@@ -212,9 +212,9 @@ void handle_clients(void) {
 
   if (!((req_type == RequestType::INVALID) || (req_type == RequestType::INDEX))) {
     // Send the request to the controller
-    char message[5];
+    char message[MODULE_REQUEST_SIZE + 1];
     requestToMessage(req_type, message);
-    Serial.print(message);
+    Serial.println(message);
   }
 
   // read/ignore the rest of the request

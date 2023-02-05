@@ -43,7 +43,7 @@ RequestType matchRequest(const String& req);
 /**
  * @brief Prepares a message containing the type of a request.
  * @param type Type of the request
- * @param str Place of the new message (the size has to be at least 5 char)
+ * @param str Place of the new message
  */
 void requestToMessage(RequestType type, char* str);
 
