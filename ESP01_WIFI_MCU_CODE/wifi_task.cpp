@@ -18,7 +18,7 @@
 
 #include "usart.h"
 
-#include "protocols.h"
+#include "../ESP01_WIFI_MODULE_CODE/protocols.h"
 #include "SerialStream.h"
 
 // /////////////////////////////////////////////////////////////////////////////

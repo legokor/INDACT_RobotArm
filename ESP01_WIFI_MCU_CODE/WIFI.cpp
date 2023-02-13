@@ -14,7 +14,7 @@
 
 #include <string.h>
 
-#include "protocols.h"
+#include "../ESP01_WIFI_MODULE_CODE/protocols.h"
 
 #define BLOCK_TIME_MS 20
 #define BLOCK_TIME_TICK (pdMS_TO_TICKS(BLOCK_TIME_MS))
