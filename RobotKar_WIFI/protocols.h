@@ -33,7 +33,7 @@
 #define STR_PASSWORD "PS"
 #define STR_STATUS "ST"
 #define STR_CHANGE_TO_CYLINDRICAL "CTC"
-#define STR_CHANGE_TO_DESCARTES "CTD"
+#define STR_CHANGE_TO_RECTANGULAR "CTD"
 /**@}*/
 
 /**@{*/

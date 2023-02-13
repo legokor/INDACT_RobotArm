@@ -72,8 +72,8 @@ const CoordSystem cylindrical = {
   .axis_2 = "&phi;",
   .axis_3 = "z"
 };
-/** @brief Descartes coordiante system. */
-const CoordSystem descartes = {
+/** @brief Rectangular coordiante system. */
+const CoordSystem rectangular = {
   .axis_1 = "x",
   .axis_2 = "y",
   .axis_3 = "z"
@@ -181,10 +181,10 @@ void handle_messages(void) {
     // Change the displayed coordinate system
     coordSystem = &cylindrical;
 
-  } else if (strcmp_P(msg_buffer, PSTR(STR_CHANGE_TO_DESCARTES)) == 0) {
+  } else if (strcmp_P(msg_buffer, PSTR(STR_CHANGE_TO_RECTANGULAR)) == 0) {
     sendConfirm();
     // Change the displayed coordinate system
-    coordSystem = &descartes;
+    coordSystem = &rectangular;
 
   } else {
     sendFail();
@@ -227,7 +227,7 @@ void handle_clients(void) {
     client.print(F("HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\n\r\n"));
     client.print(FPSTR(back_to_index_page));
 
-  } else if (req_type == RequestType::COORD_CHANGE) {
+  } else if (req_type == RequestType::CHANGE_COORDINATES) {
     client.print(F("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"));
     client.print(FPSTR(wait_for_change_page));
 

@@ -29,7 +29,7 @@ enum class RequestType {
   C_PLUS,
   C_MINUS,
   HOME,
-  COORD_CHANGE
+  CHANGE_COORDINATES
 };
 
 /**

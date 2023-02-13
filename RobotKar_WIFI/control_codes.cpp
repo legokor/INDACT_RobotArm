@@ -73,7 +73,7 @@ RequestType matchRequest(const String& req) {
         return RequestType::INVALID;
       }
 
-      return RequestType::COORD_CHANGE;
+      return RequestType::CHANGE_COORDINATES;
 
     default:
       return RequestType::INVALID;
@@ -110,7 +110,7 @@ void requestToMessage(RequestType type, char* str) {
       strcpy_P(str, PSTR(STR_HOMING));
       break;
 
-    case RequestType::COORD_CHANGE:
+    case RequestType::CHANGE_COORDINATES:
       strcpy_P(str, PSTR(STR_CHANGE_COORDINATES));
       break;
 
