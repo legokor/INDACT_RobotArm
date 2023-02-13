@@ -115,6 +115,6 @@ void requestToMessage(RequestType type, char* str) {
       break;
 
     default:
-      strcpy_P(str, PSTR(STR_ERROR));
+      break;
   }
 }

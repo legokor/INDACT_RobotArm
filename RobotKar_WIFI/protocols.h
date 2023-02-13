@@ -65,7 +65,6 @@
 #define STR_AXIS_C_MINUS "cm"
 #define STR_HOMING "hx"
 #define STR_CHANGE_COORDINATES "kx"
-#define STR_ERROR "00"
 /**@}*/
 
 #endif /* PROTOCOLS_H_ */
