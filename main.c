@@ -6,13 +6,6 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
   *
   ******************************************************************************
   */
@@ -43,27 +36,15 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
-
-I2C_HandleTypeDef hi2c1;
-
 SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
-TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim9;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
-UART_HandleTypeDef huart3;
-
-osThreadId defaultTaskHandle;
-osThreadId controlTaskHandle;
-osThreadId commTaskHandle;
-osMessageQId commQueueHandle;
-osSemaphoreId semMotorR1Handle;
-osSemaphoreId semMotorPHorizontalHandle;
-osSemaphoreId semMotorPVerticalHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -73,24 +54,29 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM1_Init(void);
-static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_ADC1_Init(void);
-static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_USART3_UART_Init(void);
+static void MX_TIM9_Init(void);
+static void MX_TIM2_Init(void);
 void StartDefaultTask(void const * argument);
 void StartRobotControlTask(void const * argument);
 void StartCommunicationTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static volatile bool motorHorizontal_RUN = 0;
+static volatile bool motorVertical_RUN = 0;
+static volatile bool motorRadial_RUN = 0;
+static volatile bool motorHorizontal_DIR = 0;
+static volatile bool motorVertical_DIR = 0;
+static volatile bool motorRadial_DIR = 0;
+
+//static volatile uint8_t buttonOK = 1;
 
 /* USER CODE END 0 */
 
@@ -103,46 +89,52 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
 	StepperMotor stepperMotors[3];
-	stepperMotors[0] = (StepperMotor) {
-			.ID = MOTOR_RADIAL_ID,
+	// BOTTOM motor
+	stepperMotors[MOTOR_FI_ID] = (StepperMotor) {
+			.ID = MOTOR_FI_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
 			.motorState = MOTORSTATE_STOPPED,
 
-			.TIM_CH = TIM_CHANNEL_1,
+			.TIM_CH = TIM_CHANNEL_2,	//PE11
 			.TIM = &htim1,
 
-			.enablePORT = MotorRadial_ENA_GPIO_Port,
-			.enablePIN = MotorRadial_ENA_Pin,
+			.enablePORT = motor_fi_ENA_GPIO_Port,  //PC11
+			.enablePIN = motor_fi_ENA_Pin,
 
-			.dirPORT = MotorRadial_DIR_GPIO_Port,
-			.dirPIN = MotorRadial_DIR_Pin,
+			.dirPORT = motor_fi_DIR_GPIO_Port,	//PC8
+			.dirPIN = motor_fi_DIR_Pin,
 	};
 
-	stepperMotors[1] = (StepperMotor) {
-			.ID = MOTOR_HORIZONTAL_ID,
+	// TOP motor
+	stepperMotors[MOTOR_Z_ID] = (StepperMotor) {
+			.ID = MOTOR_Z_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
 			.motorState = MOTORSTATE_STOPPED,
 
-			.TIM_CH = TIM_CHANNEL_2,
+			.TIM_CH = TIM_CHANNEL_3,	//PE13
 			.TIM = &htim1,
 
-			.enablePORT = MotorHorizontal_ENA_GPIO_Port,
-			.enablePIN = MotorHorizontal_ENA_Pin,
+			.enablePORT = motor_z_ENA_GPIO_Port,	//PC14
+			.enablePIN = motor_z_ENA_Pin,
 
-			.dirPORT = MotorHorizontal_DIR_GPIO_Port,
-			.dirPIN = MotorHorizontal_DIR_Pin,
+			.dirPORT = motor_z_DIR_GPIO_Port,	//PC13
+			.dirPIN = motor_z_DIR_Pin,
 	};
 
-	stepperMotors[2] = (StepperMotor) {
-			.ID = MOTOR_VERTICAL_ID,
+	// MIDDLE motor
+	stepperMotors[MOTOR_R_ID] = (StepperMotor) {
+			.ID = MOTOR_R_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
 			.motorState = MOTORSTATE_STOPPED,
 
-			.TIM_CH = TIM_CHANNEL_3,
+			.TIM_CH = TIM_CHANNEL_1,	//PE9
 			.TIM = &htim1,
 
-			.enablePORT = MotorVertical_ENA_GPIO_Port,
-			.enablePIN = MotorVertical_ENA_Pin,
+			.enablePORT = motor_r_ENA_GPIO_Port,  //PE15
+			.enablePIN = motor_r_ENA_Pin,
 
-			.dirPORT = MotorVertical_DIR_GPIO_Port,
-			.dirPIN = MotorVertical_DIR_Pin,
+			.dirPORT = motor_r_DIR_GPIO_Port,		//PE12
+			.dirPIN = motor_r_DIR_Pin,
 	};
   /* USER CODE END 1 */
 
@@ -166,77 +158,133 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_TIM1_Init();
-  MX_TIM3_Init();
   MX_TIM4_Init();
   MX_USART2_UART_Init();
-  MX_ADC1_Init();
-  MX_I2C1_Init();
   MX_SPI1_Init();
-  MX_USART3_UART_Init();
+  MX_TIM9_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
 
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
-
-  /* Create the semaphores(s) */
-  /* definition and creation of semMotorR1 */
-  osSemaphoreDef(semMotorR1);
-  semMotorR1Handle = osSemaphoreCreate(osSemaphore(semMotorR1), 1);
-
-  /* definition and creation of semMotorPHorizontal */
-  osSemaphoreDef(semMotorPHorizontal);
-  semMotorPHorizontalHandle = osSemaphoreCreate(osSemaphore(semMotorPHorizontal), 1);
-
-  /* definition and creation of semMotorPVertical */
-  osSemaphoreDef(semMotorPVertical);
-  semMotorPVerticalHandle = osSemaphoreCreate(osSemaphore(semMotorPVertical), 1);
-
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* Create the queue(s) */
-  /* definition and creation of commQueue */
-  osMessageQDef(commQueue, 16, uint32_t);
-  commQueueHandle = osMessageCreate(osMessageQ(commQueue), NULL);
-
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
-
-  /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
-  /* definition and creation of controlTask */
-  osThreadDef(controlTask, StartRobotControlTask, osPriorityRealtime, 0, 2048);
-  controlTaskHandle = osThreadCreate(osThread(controlTask), NULL);
-
-  /* definition and creation of commTask */
-  osThreadDef(commTask, StartCommunicationTask, osPriorityHigh, 0, 2048);
-  commTaskHandle = osThreadCreate(osThread(commTask), NULL);
-
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-
-  /* USER CODE END RTOS_THREADS */
-
-  /* Start scheduler */
-  osKernelStart();
-
-  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  //Enable all motor
+  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].enablePORT,stepperMotors[MOTOR_R_ID].enablePIN , 1);		//enable = HIGH
+  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].enablePORT,stepperMotors[MOTOR_Z_ID].enablePIN , 1);		// enable = HIGH
+  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].enablePORT,stepperMotors[MOTOR_FI_ID].enablePIN , 0);    // enable = GND
+
+  //Set the COM pins to GND
+  HAL_GPIO_WritePin(motor_fi_COM_GPIO_Port, motor_fi_COM_Pin, 0);
+  HAL_GPIO_WritePin(motor_r_COM_GPIO_Port, motor_r_COM_Pin , 0);
+  HAL_GPIO_WritePin(motor_z_COM_GPIO_Port, motor_z_COM_Pin, 0);
+
+  //Stop all motors before execution
+  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+
+  //Used in the first section of the code
+  //I am changing the direction of the motors by toggle this variable
+  //	uint8_t direction = 0;
+
+
+  // Belongs to the first section
+  // It prepares the motors for running alone: direction value is a variable
+  //  	HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, direction);
+  //  	HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, direction);
+  //  	HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, direction);
+  //  	HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+  //  	HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+  //  	HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+
+
   while (1)
   {
+
+
+/*
+ * Moving without buttons (first section)
+ * TODO output capture módban ha megadott tick-et lépett a motor megszakítással leállítani
+	  HAL_Delay(1000);
+
+	  direction = !direction;
+	  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, direction);
+	  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, direction);
+	  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, direction);
+
+	  //HAL_Delay(1000);
+
+	  //HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+	  //HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+	  //HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+*/
+
+
+
+
+	  //Moving with buttons (second section)
+	  //MŰKÖDIK
+	  //R tengely
+	  if(HAL_GPIO_ReadPin(motor_r_positive_button_GPIO_Port, motor_r_positive_button_Pin)){
+		  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, MOTORDIR_POSITIVE);
+
+		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+	  }
+	  else if(HAL_GPIO_ReadPin(motor_r_negative_button_GPIO_Port, motor_r_negative_button_Pin)) {
+		  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, MOTORDIR_NEGATIVE);
+
+		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+	  }
+	  else {
+		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
+	  }
+
+
+	  //FI tengely
+	  if(HAL_GPIO_ReadPin(motor_fi_positive_button_GPIO_Port, motor_fi_positive_button_Pin)){
+		  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, MOTORDIR_POSITIVE);
+
+		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+	  }
+	  else if(HAL_GPIO_ReadPin(motor_fi_negative_button_GPIO_Port, motor_fi_negative_button_Pin)) {
+		  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, MOTORDIR_NEGATIVE);
+
+		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+	  }
+	  else {
+		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
+	  }
+
+
+
+	  //Z tengely: ROSSZ A NYOMÓGOMBJA!!!!
+	  if(HAL_GPIO_ReadPin(motor_z_positive_button_GPIO_Port, motor_z_positive_button_Pin)){
+		  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, MOTORDIR_POSITIVE);
+
+		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+	  }
+	  else if(HAL_GPIO_ReadPin(motor_z_negative_button_GPIO_Port, motor_z_negative_button_Pin)) {
+		  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, MOTORDIR_NEGATIVE);
+
+		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+	  }
+	  else {
+		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
+	  }
+
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -287,106 +335,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief ADC1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_ADC1_Init(void)
-{
-
-  /* USER CODE BEGIN ADC1_Init 0 */
-
-  /* USER CODE END ADC1_Init 0 */
-
-  ADC_ChannelConfTypeDef sConfig = {0};
-
-  /* USER CODE BEGIN ADC1_Init 1 */
-
-  /* USER CODE END ADC1_Init 1 */
-
-  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
-  */
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-  */
-  sConfig.Channel = ADC_CHANNEL_4;
-  sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN ADC1_Init 2 */
-
-  /* USER CODE END ADC1_Init 2 */
-
-}
-
-/**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C1_Init(void)
-{
-
-  /* USER CODE BEGIN I2C1_Init 0 */
-
-  /* USER CODE END I2C1_Init 0 */
-
-  /* USER CODE BEGIN I2C1_Init 1 */
-
-  /* USER CODE END I2C1_Init 1 */
-  hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
-  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c1.Init.OwnAddress1 = 0;
-  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0;
-  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Analogue filter
-  */
-  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Digital filter
-  */
-  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C1_Init 2 */
-
-  /* USER CODE END I2C1_Init 2 */
-
 }
 
 /**
@@ -448,9 +396,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 1679;
+  htim1.Init.Prescaler = 1680-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 999;
+  htim1.Init.Period = 1000-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 12;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -467,10 +415,6 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OnePulse_Init(&htim1, TIM_OPMODE_SINGLE) != HAL_OK)
-  {
-    Error_Handler();
-  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
@@ -478,7 +422,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM2;
-  sConfigOC.Pulse = 499;
+  sConfigOC.Pulse = 399;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -488,6 +432,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
+  sConfigOC.Pulse = 499;
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
@@ -515,51 +460,72 @@ static void MX_TIM1_Init(void)
 }
 
 /**
-  * @brief TIM3 Initialization Function
+  * @brief TIM2 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_TIM3_Init(void)
+static void MX_TIM2_Init(void)
 {
 
-  /* USER CODE BEGIN TIM3_Init 0 */
+  /* USER CODE BEGIN TIM2_Init 0 */
 
-  /* USER CODE END TIM3_Init 0 */
+  /* USER CODE END TIM2_Init 0 */
 
-  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
 
-  /* USER CODE BEGIN TIM3_Init 1 */
+  /* USER CODE BEGIN TIM2_Init 1 */
 
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
-  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
-  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 0;
-  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
-  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 0;
-  if (HAL_TIM_Encoder_Init(&htim3, &sConfig) != HAL_OK)
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 1680-1;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 10;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OnePulse_Init(&htim2, TIM_OPMODE_SINGLE) != HAL_OK)
   {
     Error_Handler();
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN TIM3_Init 2 */
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
 
-  /* USER CODE END TIM3_Init 2 */
+  /* USER CODE END TIM2_Init 2 */
 
 }
 
@@ -577,7 +543,6 @@ static void MX_TIM4_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM4_Init 1 */
 
@@ -597,36 +562,70 @@ static void MX_TIM4_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM2;
-  sConfigOC.Pulse = 15;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM4_Init 2 */
 
   /* USER CODE END TIM4_Init 2 */
-  HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
+  * @brief TIM9 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM9_Init(void)
+{
+
+  /* USER CODE BEGIN TIM9_Init 0 */
+
+  /* USER CODE END TIM9_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM9_Init 1 */
+
+  /* USER CODE END TIM9_Init 1 */
+  htim9.Instance = TIM9;
+  htim9.Init.Prescaler = 8400-1;
+  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim9.Init.Period = 1000-1;
+  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim9, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OnePulse_Init(&htim9, TIM_OPMODE_SINGLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM9_Init 2 */
+
+  /* USER CODE END TIM9_Init 2 */
 
 }
 
@@ -697,39 +696,6 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
-  * @brief USART3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART3_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART3_Init 0 */
-
-  /* USER CODE END USART3_Init 0 */
-
-  /* USER CODE BEGIN USART3_Init 1 */
-
-  /* USER CODE END USART3_Init 1 */
-  huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
-  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
-  huart3.Init.Mode = UART_MODE_TX_RX;
-  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART3_Init 2 */
-
-  /* USER CODE END USART3_Init 2 */
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -740,80 +706,107 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, MotorVertical_DIR_Pin|MotorVertical_ENA_Pin|MotorVertical_COM_Pin|MotorHorizontal_DIR_Pin
-                          |MotorHorizontal_ENA_Pin|MotorHorizontal_COM_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, motor_z_DIR_Pin|motor_z_ENA_Pin|motor_z_COM_Pin|motor_fi_DIR_Pin
+                          |motor_fi_ENA_Pin|motor_fi_COM_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, MotorRadial_DIR_Pin|MotorRadial_COM_Pin|MotorRadial_ENA_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, motor_r_DIR_Pin|motor_r_COM_Pin|motor_r_ENA_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOG, GreenLed_LD3_Pin|RedLed_LD4_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : MotorVertical_DIR_Pin MotorVertical_ENA_Pin MotorVertical_COM_Pin MotorHorizontal_DIR_Pin
-                           MotorHorizontal_ENA_Pin MotorHorizontal_COM_Pin */
-  GPIO_InitStruct.Pin = MotorVertical_DIR_Pin|MotorVertical_ENA_Pin|MotorVertical_COM_Pin|MotorHorizontal_DIR_Pin
-                          |MotorHorizontal_ENA_Pin|MotorHorizontal_COM_Pin;
+  /*Configure GPIO pins : motor_z_DIR_Pin motor_z_ENA_Pin motor_z_COM_Pin motor_fi_DIR_Pin
+                           motor_fi_ENA_Pin motor_fi_COM_Pin */
+  GPIO_InitStruct.Pin = motor_z_DIR_Pin|motor_z_ENA_Pin|motor_z_COM_Pin|motor_fi_DIR_Pin
+                          |motor_fi_ENA_Pin|motor_fi_COM_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : MotorRadial_DIR_Pin MotorRadial_COM_Pin MotorRadial_ENA_Pin */
-  GPIO_InitStruct.Pin = MotorRadial_DIR_Pin|MotorRadial_COM_Pin|MotorRadial_ENA_Pin;
+  /*Configure GPIO pins : motor_z_negative_button_Pin motor_z_positive_button_Pin motor_r_negative_button_Pin motor_r_positive_button_Pin
+                           motor_fi_negative_button_Pin motor_fi_positive_button_Pin */
+  GPIO_InitStruct.Pin = motor_z_negative_button_Pin|motor_z_positive_button_Pin|motor_r_negative_button_Pin|motor_r_positive_button_Pin
+                          |motor_fi_negative_button_Pin|motor_fi_positive_button_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : motor_r_DIR_Pin motor_r_COM_Pin motor_r_ENA_Pin */
+  GPIO_InitStruct.Pin = motor_r_DIR_Pin|motor_r_COM_Pin|motor_r_ENA_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : MotorRadial_PositiveButton_Pin MotorRadial_NegativeButton_Pin MotorHorizontal_PositiveButton_Pin MotorHorizontal_NegativeButton_Pin
-                           MotorVertical_PositiveButton_Pin MotorVertical_NegativeButton_Pin EmergencyButton_Pin */
-  GPIO_InitStruct.Pin = MotorRadial_PositiveButton_Pin|MotorRadial_NegativeButton_Pin|MotorHorizontal_PositiveButton_Pin|MotorHorizontal_NegativeButton_Pin
-                          |MotorVertical_PositiveButton_Pin|MotorVertical_NegativeButton_Pin|EmergencyButton_Pin;
+  /*Configure GPIO pin : EmergencyButton_Pin */
+  GPIO_InitStruct.Pin = EmergencyButton_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : GPIO_PG8_Interrupt_reservedforfutureuse_Pin */
-  GPIO_InitStruct.Pin = GPIO_PG8_Interrupt_reservedforfutureuse_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIO_PG8_Interrupt_reservedforfutureuse_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(EmergencyButton_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : GreenLed_LD3_Pin RedLed_LD4_Pin */
   GPIO_InitStruct.Pin = GreenLed_LD3_Pin|RedLed_LD4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
 /* USER CODE BEGIN 4 */
+/* Elkeseredett próbálkozás egy semaphor-hoz hasonló valaminek a megírására
+ * Inkább hagytuk mert nem tudtuk mit csinálunk
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if(buttonOK){
+		if ((GPIO_Pin & motor_r_positive_button_Pin) & !((motorHorizontal_DIR == MOTORDIR_NEGATIVE) & motorHorizontal_RUN)){
+			motorHorizontal_RUN != motorHorizontal_RUN;
+			motorHorizontal_DIR = MOTORDIR_POSITIVE;
+			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+		}
+		if ((GPIO_Pin & motor_r_negative_button_Pin) & !((motorHorizontal_DIR == MOTORDIR_POSITIVE) & motorHorizontal_RUN)){
+			motorHorizontal_RUN != motorHorizontal_RUN;
+			motorHorizontal_DIR = MOTORDIR_NEGATIVE;
+			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
+		}
+		if ((GPIO_Pin & motor_z_positive_button_Pin) & !((motorVertical_DIR == MOTORDIR_NEGATIVE) & motorVertical_RUN)){
+			motorVertical_RUN != motorVertical_RUN;
+			motorVertical_DIR = MOTORDIR_POSITIVE;
+			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+		}
+		if ((GPIO_Pin & motor_z_negative_button_Pin) & !((motorVertical_DIR == MOTORDIR_POSITIVE) & motorVertical_RUN)){
+			motorVertical_RUN != motorVertical_RUN;
+			motorVertical_DIR = MOTORDIR_NEGATIVE;
+			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
+		}
+		if ((GPIO_Pin & motor_fi_positive_button_Pin) & !((motorRadial_DIR == MOTORDIR_NEGATIVE) & motorRadial_RUN)){
+			motorRadial_RUN != motorRadial_RUN;
+			motorRadial_DIR = MOTORDIR_POSITIVE;
+			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
+		}
+		if ((GPIO_Pin & motor_fi_negative_button_Pin) & !((motorRadial_DIR == MOTORDIR_POSITIVE) & motorRadial_RUN)){
+			motorRadial_RUN != motorRadial_RUN;
+			motorRadial_DIR = MOTORDIR_NEGATIVE;
+			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin, 0);
+		}
 
+		buttonOK = 0;
+		HAL_TIM_Base_Start_IT(&htim9);
+	}
+}
+*/
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -841,44 +834,16 @@ void StartDefaultTask(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_StartRobotControlTask */
-
 void StartRobotControlTask(void const * argument)
-{ /*
-  // USER CODE BEGIN StartRobotControlTask
-  uint8_t temp_08 = 0;
-
-  TickType_t xLastWakeTime;
-  const TickType_t xDelay10ms = pdMS_TO_TICKS(10);
-
-  // The xLastWakeTime variable needs to be initialized with the current tick
-   * count. Note that this is the only time the variable is written to explicitly.
-   * After this xLastWakeTime is automatically updated within vTaskDelayUntil().
-  xLastWakeTime = xTaskGetTickCount();
-
-  // create the function pointer and set to reset state
-  struct MSM_state msmState_ptr = {
-		  .next = msmStateReset,
-		  .stateName = MSM_STATE_RESET
-  };
-
-  // Infinite loop
+{
+  /* USER CODE BEGIN StartRobotControlTask */
+  /* Infinite loop */
   for(;;)
   {
-
-	// running the next state
-	temp_08 = msmState_ptr.next(&msmState_ptr);
-
-	// this makes the task to run at the prescribed fixed frequency
-	osDelayUntil(&xLastWakeTime, xDelay10ms);
-	//osDelay(1);
+    osDelay(1);
   }
-
-  // USER CODE END StartRobotControlTask
-
-*/
+  /* USER CODE END StartRobotControlTask */
 }
-
-
 
 /* USER CODE BEGIN Header_StartCommunicationTask */
 /**
@@ -888,41 +853,14 @@ void StartRobotControlTask(void const * argument)
 */
 /* USER CODE END Header_StartCommunicationTask */
 void StartCommunicationTask(void const * argument)
-{ /*
-  // USER CODE BEGIN StartCommunicationTask
-  uint8_t temp_08 = 3;
-  uint8_t temp_b = 0;
-  uint32_t temp_32 = 0;
-  char DEBUGMSG_10[48] = {""};
-  char DEBUGMSG_CNT[12] = {""};
-  TickType_t xLastWakeTime;
-  const TickType_t xDelay250ms = pdMS_TO_TICKS(25);
-
-  // The xLastWakeTime variable needs to be initialized with the current tick
-   * count. Note that this is the only time the variable is written to explicitly.
-   * After this xLastWakeTime is automatically updated within vTaskDelayUntil().
-  xLastWakeTime = xTaskGetTickCount();
-
-
-  // Infinite loop
+{
+  /* USER CODE BEGIN StartCommunicationTask */
+  /* Infinite loop */
   for(;;)
   {
-
-	// prints the current and desired positions to serial - recommendation: use XTCO program as serial console
-	//sprintf(DEBUGMSG_10, "{R1,PH,PV}:{%4lu(%4lu), %4lu(%4lu), %4lu(%4lu)}", getSTMotorCurrPos(STMOTOR_R1_ID), getSTMotorDesiredPos(STMOTOR_R1_ID), getSTMotorCurrPos(STMOTOR_PH_ID), getSTMotorDesiredPos(STMOTOR_PH_ID), getSTMotorCurrPos(STMOTOR_PV_ID), getSTMotorDesiredPos(STMOTOR_PV_ID));
-	//HAL_UART_Transmit(&huart1, (uint8_t*)(&DEBUGMSG_10), sizeof(DEBUGMSG_10)/sizeof(DEBUGMSG_10[0]), 1000);
-	//temp_32 = getEncoderValue();
-	//sprintf(DEBUGMSG_CNT, "cnt:%lu\n", temp_32);
-	//HAL_UART_Transmit(&huart1, (uint8_t*)(&DEBUGMSG_CNT), sizeof(DEBUGMSG_CNT)/sizeof(DEBUGMSG_CNT[0]), 1000);
-
-
-	// this makes the task to run at the prescribed fixed frequency
-	//osDelayUntil(&xLastWakeTime, xDelay250ms);
-	//osDelay(1);
+    osDelay(1);
   }
-  // USER CODE END StartCommunicationTask
-
- */
+  /* USER CODE END StartCommunicationTask */
 }
 
 /**

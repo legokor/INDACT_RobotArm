@@ -18,7 +18,7 @@
 extern TIM_HandleTypeDef htim1;
 
 /* Private variables */
-static StepperMotor StepperMotors[NUMBER_OF_MOTORS]; //MOTOR_ROADIAL_ID, MOTOR_HORIZONTAL_ID, MOTOR_VERTICAL_ID
+static StepperMotor stepperMotors[NUMBER_OF_MOTORS]; //MOTOR_ROADIAL_ID, MOTOR_HORIZONTAL_ID, MOTOR_VERTICAL_ID
 
 /* BEGIN static functions */
 //static uint8_t maxOfThree(uint8_t value1, uint8_t value2, uint8_t value3);
@@ -37,7 +37,7 @@ uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection)
 	uint8_t retVal = 0u;
 	if(MOTORDIR_TODESIREDPOS == desiredDirection)
 	{
-		if (StepperMotors[ID].desiredPos > StepperMotors[ID].currPos)
+		if (stepperMotors[ID].desiredPos > stepperMotors[ID].currPos)
 		{
 			/* reinvoke the function with new paramters */
 			return retVal = setMotorDirection(ID, MOTORDIR_POSITIVE);
@@ -50,45 +50,44 @@ uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection)
 	}
 	else if (MOTORDIR_POSITIVE == desiredDirection)
 	{
-		if((StepperMotors[ID].allowedDir & MOTORALLOW_POSDIR) >> (MOTORALLOW_POSDIR-1u))
+		if((stepperMotors[ID].allowedDir & MOTORALLOW_POSDIR) /*>> (MOTORALLOW_POSDIR-1u)*/)
 		{
-			StepperMotors[ID].dir = MOTORDIR_POSITIVE;
+			stepperMotors[ID].dir = MOTORDIR_POSITIVE;
 		}
 		else
 		{
-			StepperMotors[ID].dir = MOTORDIR_UNDEFINED;
+			stepperMotors[ID].dir = MOTORDIR_UNDEFINED;
 			retVal |= (uint8_t)0x01;
 		}
 	}
 	else if (MOTORDIR_NEGATIVE == desiredDirection)
 	{
-		if((StepperMotors[ID].allowedDir & MOTORALLOW_NEGDIR) >> (MOTORALLOW_NEGDIR-1u))
+		if((stepperMotors[ID].allowedDir & MOTORALLOW_NEGDIR) /*>> (MOTORALLOW_NEGDIR-1u)*/)
 		{
-			StepperMotors[ID].dir = MOTORDIR_NEGATIVE;
+			stepperMotors[ID].dir = MOTORDIR_NEGATIVE;
 		}
 		else
 		{
-			LedLD4ON();
-			StepperMotors[ID].dir = MOTORDIR_UNDEFINED;
+			stepperMotors[ID].dir = MOTORDIR_UNDEFINED;
 			retVal |= (uint8_t)0x02;
 		}
 	}
 	else if (MOTORDIR_UNDEFINED == desiredDirection)
 	{
 		/* this one is probably not used */
-		StepperMotors[ID].dir = MOTORDIR_UNDEFINED;
+		stepperMotors[ID].dir = MOTORDIR_UNDEFINED;
 		retVal |= (uint8_t)0x03;
 	}
 	else
 	{
-		StepperMotors[ID].dir = MOTORDIR_UNDEFINED;
+		stepperMotors[ID].dir = MOTORDIR_UNDEFINED;
 		retVal |= (uint8_t)0x04;
 	}
 
 	/* Write the necessary output */
 	if (0u == retVal)
 	{
-		HAL_GPIO_WritePin(StepperMotors[ID].dirPORT, StepperMotors[ID].dirPIN, desiredDirection);
+		HAL_GPIO_WritePin(stepperMotors[ID].dirPORT, stepperMotors[ID].dirPIN, desiredDirection);
 	}
 
 	return retVal;
@@ -106,13 +105,12 @@ uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection)
 uint32_t setAllDirectionsTowardsDesiredPos()
 {
 	uint32_t retVal = 0u;
-	char DEBUGMSG_10[10] = {""};
 
 	if( NUMBER_OF_MOTORS == 3u)
 	{
-		retVal = (setMotorDirection(MOTOR_RADIAL_ID, MOTORDIR_TODESIREDPOS) << 16);
-		retVal = (setMotorDirection(MOTOR_HORIZONTAL_ID, MOTORDIR_TODESIREDPOS) << 8);
-		retVal = setMotorDirection(MOTOR_VERTICAL_ID, MOTORDIR_TODESIREDPOS);
+		retVal = (setMotorDirection(MOTOR_FI_ID, MOTORDIR_TODESIREDPOS) << 16);
+		retVal = (setMotorDirection(MOTOR_Z_ID, MOTORDIR_TODESIREDPOS) << 8);
+		retVal = setMotorDirection(MOTOR_R_ID, MOTORDIR_TODESIREDPOS);
 	}
 	else { retVal = 0xFFFFFFFF; }
 	return retVal;
@@ -125,7 +123,7 @@ uint32_t setAllDirectionsTowardsDesiredPos()
 bool posReached(const uint8_t ID)
 {
 	bool retVal = true;
-	if (StepperMotors[ID].currPos != StepperMotors[ID].desiredPos)
+	if (stepperMotors[ID].currPos != stepperMotors[ID].desiredPos)
 	{
 		retVal = false;
 	}
@@ -157,8 +155,8 @@ bool posAllReached()
  */
 void startMotorPWM(const uint8_t ID)
 {
-	StepperMotors[ID].motorState = MOTORSTATE_RUNNING;
-	HAL_TIM_PWM_Start_IT(&htim1, StepperMotors[ID].TIM_CH);
+	stepperMotors[ID].motorState = MOTORSTATE_RUNNING;
+	HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[ID].TIM_CH);
 }
 
 /*
@@ -166,7 +164,7 @@ void startMotorPWM(const uint8_t ID)
  */
 void startAllMotorPWMs()
 {
-	uint8_t tempMotorNumber = getMotorNumbers();
+	uint8_t tempMotorNumber = NUMBER_OF_MOTORS;
 
 	for (uint8_t idx = 0; idx < tempMotorNumber; idx++)
 	{
@@ -200,8 +198,8 @@ void changeMotorSpeed(const uint8_t RCRValue)
  */
 void stopMotorPWM(const uint8_t ID)
 {
-	StepperMotors[ID].motorState = MOTORSTATE_STOPPED;
-	HAL_TIM_PWM_Stop_IT(&htim1, StepperMotors[ID].TIM_CH);
+	stepperMotors[ID].motorState = MOTORSTATE_STOPPED;
+	HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[ID].TIM_CH);
 }
 
 
@@ -245,12 +243,12 @@ static uint8_t maxOfThree(uint8_t value1, uint8_t value2, uint8_t value3)
 uint8_t calcRcrValue(uint8_t *RCRoverflow, StepperMotor* motors)
 {
 	uint8_t RCRValue;
-	/* distance between current pos and desired pos - abs value
+	//distance between current pos and desired pos - abs value
 	uint32_t xTempu32 = abs(motors[MOTOR_RADIAL_ID].desiredPos - motors[MOTOR_RADIAL_ID].currPos);
 	uint32_t yTempu32 = abs(motors[MOTOR_HORIZONTAL_ID].desiredPos - motors[MOTOR_HORIZONTAL_ID].currPos);
 	uint32_t zTempu32 = abs(motors[MOTOR_VERTICAL_ID].desiredPos - motors[MOTOR_VERTICAL_ID].currPos);
 
-	/* count the total steps of the 3 CH in one RCR cycle
+	//count the total steps of the 3 CH in one RCR cycle
 	RCRRemainingValue = (uint8_t)xTempu32 + (uint8_t)yTempu32 + (uint8_t)zTempu32;
 	//testRCRRemainingValue = (uint8_t)xTempu32 + (uint8_t)yTempu32 + (uint8_t)zTempu32;
 	if ((xTempu32 > UINT8T_MAXV) || (yTempu32 > UINT8T_MAXV) || (zTempu32 > UINT8T_MAXV))

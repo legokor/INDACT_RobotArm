@@ -25,10 +25,10 @@
 #define MOTORALLOW_NODIR	(uint8_t)0u	//0b0000_0000
 #define MOTORALLOW_MASK		(uint8_t)0b00000011 //3u
 
-#define MOTOR_RADIAL_ID			(uint8_t)0u
-#define MOTOR_HORIZONTAL_ID		(uint8_t)1u
-#define MOTOR_VERTICAL_ID		(uint8_t)2u
-#define NUMBER_OF_MOTORS		(uint8_t)3u
+#define MOTOR_FI_ID			(uint8_t)0u
+#define MOTOR_Z_ID			(uint8_t)1u
+#define MOTOR_R_ID			(uint8_t)2u
+#define NUMBER_OF_MOTORS	(uint8_t)3u
 
 /* Positions */ //??????
 #define MAXPOSITIONS (uint8_t)12u
