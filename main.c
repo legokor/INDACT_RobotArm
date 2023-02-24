@@ -4,9 +4,11 @@
   * @file           : main.c
   * @brief          : Main program body
   ******************************************************************************
-  * @attention
+  * This project implements the basic movement functions required for controlling Karcsi.
+  * The user can control the arm trough the six pushbuttons connected to port F.
   *
-  *
+  * TIM1_TRGO pin is connected to TIM2_ITR0, so TIM1 acts as a prescaler to TIM2.
+  * In the future this will be used for calculate the position of the arm.
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -40,11 +42,17 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
-TIM_HandleTypeDef htim4;
-TIM_HandleTypeDef htim9;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
+
+osThreadId defaultTaskHandle;
+osThreadId controlTaskHandle;
+osThreadId commTaskHandle;
+osMessageQId commQueueHandle;
+osSemaphoreId semMotorR1Handle;
+osSemaphoreId semMotorPHorizontalHandle;
+osSemaphoreId semMotorPVerticalHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -54,10 +62,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM1_Init(void);
-static void MX_TIM4_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_TIM9_Init(void);
 static void MX_TIM2_Init(void);
 void StartDefaultTask(void const * argument);
 void StartRobotControlTask(void const * argument);
@@ -89,7 +95,7 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
 	StepperMotor stepperMotors[3];
-	// BOTTOM motor
+
 	stepperMotors[MOTOR_FI_ID] = (StepperMotor) {
 			.ID = MOTOR_FI_ID,
 			.allowedDir = MOTORALLOW_BOTHDIR,
@@ -104,8 +110,6 @@ int main(void)
 			.dirPORT = motor_fi_DIR_GPIO_Port,	//PC8
 			.dirPIN = motor_fi_DIR_Pin,
 	};
-
-	// TOP motor
 	stepperMotors[MOTOR_Z_ID] = (StepperMotor) {
 			.ID = MOTOR_Z_ID,
 			.allowedDir = MOTORALLOW_BOTHDIR,
@@ -120,8 +124,6 @@ int main(void)
 			.dirPORT = motor_z_DIR_GPIO_Port,	//PC13
 			.dirPIN = motor_z_DIR_Pin,
 	};
-
-	// MIDDLE motor
 	stepperMotors[MOTOR_R_ID] = (StepperMotor) {
 			.ID = MOTOR_R_ID,
 			.allowedDir = MOTORALLOW_BOTHDIR,
@@ -158,132 +160,94 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_TIM1_Init();
-  MX_TIM4_Init();
   MX_USART2_UART_Init();
   MX_SPI1_Init();
-  MX_TIM9_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
 
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  //Enable all motor
-  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].enablePORT,stepperMotors[MOTOR_R_ID].enablePIN , 1);		//enable = HIGH
-  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].enablePORT,stepperMotors[MOTOR_Z_ID].enablePIN , 1);		// enable = HIGH
-  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].enablePORT,stepperMotors[MOTOR_FI_ID].enablePIN , 0);    // enable = GND
 
   //Set the COM pins to GND
   HAL_GPIO_WritePin(motor_fi_COM_GPIO_Port, motor_fi_COM_Pin, 0);
   HAL_GPIO_WritePin(motor_r_COM_GPIO_Port, motor_r_COM_Pin , 0);
   HAL_GPIO_WritePin(motor_z_COM_GPIO_Port, motor_z_COM_Pin, 0);
 
-  //Stop all motors before execution
-  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
-  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
-  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+  //Enable all motor
+  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].enablePORT,stepperMotors[MOTOR_R_ID].enablePIN , 1);		//enable = HIGH
+  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].enablePORT,stepperMotors[MOTOR_Z_ID].enablePIN , 1);		// enable = HIGH
+  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].enablePORT,stepperMotors[MOTOR_FI_ID].enablePIN , 0);    // enable = GND
 
-  //Used in the first section of the code
-  //I am changing the direction of the motors by toggle this variable
-  //	uint8_t direction = 0;
-
-
-  // Belongs to the first section
-  // It prepares the motors for running alone: direction value is a variable
-  //  	HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, direction);
-  //  	HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, direction);
-  //  	HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, direction);
-  //  	HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
-  //  	HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
-  //  	HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
-
+  HAL_TIM_Base_Start_IT(&htim2);
 
   while (1)
   {
 
-
-/*
- * Moving without buttons (first section)
- * TODO output capture módban ha megadott tick-et lépett a motor megszakítással leállítani
-	  HAL_Delay(1000);
-
-	  direction = !direction;
-	  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, direction);
-	  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, direction);
-	  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, direction);
-
-	  //HAL_Delay(1000);
-
-	  //HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
-	  //HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
-	  //HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
-*/
-
-
-
-
-	  //Moving with buttons (second section)
-	  //MŰKÖDIK
-	  //R tengely
+	  //R axis
 	  if(HAL_GPIO_ReadPin(motor_r_positive_button_GPIO_Port, motor_r_positive_button_Pin)){
 		  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, MOTORDIR_POSITIVE);
-
 		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+
+		  //for debug only
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
 	  }
 	  else if(HAL_GPIO_ReadPin(motor_r_negative_button_GPIO_Port, motor_r_negative_button_Pin)) {
 		  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, MOTORDIR_NEGATIVE);
-
 		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
 	  }
 	  else {
 		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
+
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
 	  }
 
 
-	  //FI tengely
+	  //FI axis
 	  if(HAL_GPIO_ReadPin(motor_fi_positive_button_GPIO_Port, motor_fi_positive_button_Pin)){
 		  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, MOTORDIR_POSITIVE);
-
 		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+
+		  //for debug only
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
 	  }
 	  else if(HAL_GPIO_ReadPin(motor_fi_negative_button_GPIO_Port, motor_fi_negative_button_Pin)) {
 		  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, MOTORDIR_NEGATIVE);
-
 		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
 	  }
 	  else {
 		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
+
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
 	  }
 
 
 
-	  //Z tengely: ROSSZ A NYOMÓGOMBJA!!!!
+	  //Z axis
 	  if(HAL_GPIO_ReadPin(motor_z_positive_button_GPIO_Port, motor_z_positive_button_Pin)){
 		  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, MOTORDIR_POSITIVE);
-
 		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+
+		  //for debug only
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
 	  }
 	  else if(HAL_GPIO_ReadPin(motor_z_negative_button_GPIO_Port, motor_z_negative_button_Pin)) {
 		  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, MOTORDIR_NEGATIVE);
-
 		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
 	  }
 	  else {
 		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
+
 		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
 	  }
-
-
 
     /* USER CODE END WHILE */
 
@@ -400,7 +364,7 @@ static void MX_TIM1_Init(void)
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 1000-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim1.Init.RepetitionCounter = 12;
+  htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
   {
@@ -415,14 +379,14 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM2;
-  sConfigOC.Pulse = 399;
+  sConfigOC.Pulse = 499;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -432,7 +396,6 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.Pulse = 499;
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
@@ -471,7 +434,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 0 */
 
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -479,17 +442,12 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 1680-1;
+  htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 10;
+  htim2.Init.Period = 100;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
   {
     Error_Handler();
   }
@@ -497,7 +455,9 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OnePulse_Init(&htim2, TIM_OPMODE_SINGLE) != HAL_OK)
+  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_EXTERNAL1;
+  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
+  if (HAL_TIM_SlaveConfigSynchro(&htim2, &sSlaveConfig) != HAL_OK)
   {
     Error_Handler();
   }
@@ -515,117 +475,9 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
-
-}
-
-/**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-
-  /* USER CODE BEGIN TIM4_Init 0 */
-
-  /* USER CODE END TIM4_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM4_Init 1 */
-
-  /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 419;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 1999;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV2;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM4_Init 2 */
-
-  /* USER CODE END TIM4_Init 2 */
-
-}
-
-/**
-  * @brief TIM9 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM9_Init(void)
-{
-
-  /* USER CODE BEGIN TIM9_Init 0 */
-
-  /* USER CODE END TIM9_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM9_Init 1 */
-
-  /* USER CODE END TIM9_Init 1 */
-  htim9.Instance = TIM9;
-  htim9.Init.Prescaler = 8400-1;
-  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim9.Init.Period = 1000-1;
-  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim9) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim9, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_OC_Init(&htim9) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_OnePulse_Init(&htim9, TIM_OPMODE_SINGLE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_TIMING;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_OC_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM9_Init 2 */
-
-  /* USER CODE END TIM9_Init 2 */
 
 }
 
@@ -767,46 +619,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-/* Elkeseredett próbálkozás egy semaphor-hoz hasonló valaminek a megírására
- * Inkább hagytuk mert nem tudtuk mit csinálunk
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	if(buttonOK){
-		if ((GPIO_Pin & motor_r_positive_button_Pin) & !((motorHorizontal_DIR == MOTORDIR_NEGATIVE) & motorHorizontal_RUN)){
-			motorHorizontal_RUN != motorHorizontal_RUN;
-			motorHorizontal_DIR = MOTORDIR_POSITIVE;
-			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-		}
-		if ((GPIO_Pin & motor_r_negative_button_Pin) & !((motorHorizontal_DIR == MOTORDIR_POSITIVE) & motorHorizontal_RUN)){
-			motorHorizontal_RUN != motorHorizontal_RUN;
-			motorHorizontal_DIR = MOTORDIR_NEGATIVE;
-			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
-		}
-		if ((GPIO_Pin & motor_z_positive_button_Pin) & !((motorVertical_DIR == MOTORDIR_NEGATIVE) & motorVertical_RUN)){
-			motorVertical_RUN != motorVertical_RUN;
-			motorVertical_DIR = MOTORDIR_POSITIVE;
-			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-		}
-		if ((GPIO_Pin & motor_z_negative_button_Pin) & !((motorVertical_DIR == MOTORDIR_POSITIVE) & motorVertical_RUN)){
-			motorVertical_RUN != motorVertical_RUN;
-			motorVertical_DIR = MOTORDIR_NEGATIVE;
-			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
-		}
-		if ((GPIO_Pin & motor_fi_positive_button_Pin) & !((motorRadial_DIR == MOTORDIR_NEGATIVE) & motorRadial_RUN)){
-			motorRadial_RUN != motorRadial_RUN;
-			motorRadial_DIR = MOTORDIR_POSITIVE;
-			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-		}
-		if ((GPIO_Pin & motor_fi_negative_button_Pin) & !((motorRadial_DIR == MOTORDIR_POSITIVE) & motorRadial_RUN)){
-			motorRadial_RUN != motorRadial_RUN;
-			motorRadial_DIR = MOTORDIR_NEGATIVE;
-			HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin, 0);
-		}
 
-		buttonOK = 0;
-		HAL_TIM_Base_Start_IT(&htim9);
-	}
-}
-*/
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -880,7 +693,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+  if(htim->Instance == TIM2) {
+	  HAL_GPIO_TogglePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin);
+  }
   /* USER CODE END Callback 1 */
 }
 
