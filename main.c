@@ -42,6 +42,7 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
@@ -54,7 +55,9 @@ osSemaphoreId semMotorR1Handle;
 osSemaphoreId semMotorPHorizontalHandle;
 osSemaphoreId semMotorPVerticalHandle;
 /* USER CODE BEGIN PV */
-
+static volatile uint32_t posRValue = 0;
+static volatile uint32_t posZValue = 0;
+static volatile uint32_t posFiValue = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,6 +68,7 @@ static void MX_TIM1_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
 void StartDefaultTask(void const * argument);
 void StartRobotControlTask(void const * argument);
 void StartCommunicationTask(void const * argument);
@@ -75,14 +79,6 @@ void StartCommunicationTask(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static volatile bool motorHorizontal_RUN = 0;
-static volatile bool motorVertical_RUN = 0;
-static volatile bool motorRadial_RUN = 0;
-static volatile bool motorHorizontal_DIR = 0;
-static volatile bool motorVertical_DIR = 0;
-static volatile bool motorRadial_DIR = 0;
-
-//static volatile uint8_t buttonOK = 1;
 
 /* USER CODE END 0 */
 
@@ -93,7 +89,6 @@ static volatile bool motorRadial_DIR = 0;
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
 	StepperMotor stepperMotors[3];
 
 	stepperMotors[MOTOR_FI_ID] = (StepperMotor) {
@@ -115,8 +110,8 @@ int main(void)
 			.allowedDir = MOTORALLOW_BOTHDIR,
 			.motorState = MOTORSTATE_STOPPED,
 
-			.TIM_CH = TIM_CHANNEL_3,	//PE13
-			.TIM = &htim1,
+			.TIM_CH = TIM_CHANNEL_1,	//PA0
+			.TIM = &htim2,
 
 			.enablePORT = motor_z_ENA_GPIO_Port,	//PC14
 			.enablePIN = motor_z_ENA_Pin,
@@ -129,8 +124,8 @@ int main(void)
 			.allowedDir = MOTORALLOW_BOTHDIR,
 			.motorState = MOTORSTATE_STOPPED,
 
-			.TIM_CH = TIM_CHANNEL_1,	//PE9
-			.TIM = &htim1,
+			.TIM_CH = TIM_CHANNEL_1,	//PA6
+			.TIM = &htim3,
 
 			.enablePORT = motor_r_ENA_GPIO_Port,  //PE15
 			.enablePIN = motor_r_ENA_Pin,
@@ -163,11 +158,18 @@ int main(void)
   MX_USART2_UART_Init();
   MX_SPI1_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_Base_Start_IT(&htim1);
+  HAL_TIM_Base_Start_IT(&htim2);
+  HAL_TIM_Base_Start_IT(&htim3);
   /* USER CODE END 2 */
 
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
 
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
@@ -181,73 +183,28 @@ int main(void)
   HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].enablePORT,stepperMotors[MOTOR_Z_ID].enablePIN , 1);		// enable = HIGH
   HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].enablePORT,stepperMotors[MOTOR_FI_ID].enablePIN , 0);    // enable = GND
 
-  HAL_TIM_Base_Start_IT(&htim2);
-
   while (1)
   {
-
 	  //R axis
-	  if(HAL_GPIO_ReadPin(motor_r_positive_button_GPIO_Port, motor_r_positive_button_Pin)){
-		  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, MOTORDIR_POSITIVE);
-		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
-
-		  //for debug only
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-	  }
-	  else if(HAL_GPIO_ReadPin(motor_r_negative_button_GPIO_Port, motor_r_negative_button_Pin)) {
-		  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].dirPORT, stepperMotors[MOTOR_R_ID].dirPIN, MOTORDIR_NEGATIVE);
-		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
-
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-	  }
-	  else {
-		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_R_ID].TIM_CH);
-
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
-	  }
-
+	  motorControlViaGPIO(
+			  motor_r_positive_button_GPIO_Port, motor_r_positive_button_Pin,
+			  motor_r_negative_button_GPIO_Port, motor_r_negative_button_Pin,
+			  stepperMotors, MOTOR_R_ID
+	  );
 
 	  //FI axis
-	  if(HAL_GPIO_ReadPin(motor_fi_positive_button_GPIO_Port, motor_fi_positive_button_Pin)){
-		  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, MOTORDIR_POSITIVE);
-		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
-
-		  //for debug only
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-	  }
-	  else if(HAL_GPIO_ReadPin(motor_fi_negative_button_GPIO_Port, motor_fi_negative_button_Pin)) {
-		  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].dirPORT, stepperMotors[MOTOR_FI_ID].dirPIN, MOTORDIR_NEGATIVE);
-		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
-
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-	  }
-	  else {
-		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_FI_ID].TIM_CH);
-
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
-	  }
-
-
+	  motorControlViaGPIO(
+			  motor_fi_positive_button_GPIO_Port, motor_fi_positive_button_Pin,
+			  motor_fi_negative_button_GPIO_Port, motor_fi_negative_button_Pin,
+			  stepperMotors, MOTOR_FI_ID
+	  );
 
 	  //Z axis
-	  if(HAL_GPIO_ReadPin(motor_z_positive_button_GPIO_Port, motor_z_positive_button_Pin)){
-		  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, MOTORDIR_POSITIVE);
-		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
-
-		  //for debug only
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-	  }
-	  else if(HAL_GPIO_ReadPin(motor_z_negative_button_GPIO_Port, motor_z_negative_button_Pin)) {
-		  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].dirPORT, stepperMotors[MOTOR_Z_ID].dirPIN, MOTORDIR_NEGATIVE);
-		  HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
-
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 1);
-	  }
-	  else {
-		  HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[MOTOR_Z_ID].TIM_CH);
-
-		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port,GreenLed_LD3_Pin , 0);
-	  }
+	  motorControlViaGPIO(
+			  motor_z_positive_button_GPIO_Port, motor_z_positive_button_Pin,
+			  motor_z_negative_button_GPIO_Port, motor_z_negative_button_Pin,
+			  stepperMotors, MOTOR_Z_ID
+	 );
 
     /* USER CODE END WHILE */
 
@@ -379,7 +336,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
   {
@@ -392,15 +349,7 @@ static void MX_TIM1_Init(void)
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
   sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -434,7 +383,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 0 */
 
-  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -442,22 +391,21 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 1680-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 100;
+  htim2.Init.Period = 1000-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OC_Init(&htim2) != HAL_OK)
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_EXTERNAL1;
-  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
-  if (HAL_TIM_SlaveConfigSynchro(&htim2, &sSlaveConfig) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -467,17 +415,77 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_TIMING;
-  sConfigOC.Pulse = 0;
+  sConfigOC.OCMode = TIM_OCMODE_PWM2;
+  sConfigOC.Pulse = 499;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+  HAL_TIM_MspPostInit(&htim2);
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 1680-1;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 1000-1;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM2;
+  sConfigOC.Pulse = 499;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
 
 }
 
@@ -693,8 +701,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+  if(htim->Instance == TIM1) {
+	  posFiValue++;
+  }
   if(htim->Instance == TIM2) {
-	  HAL_GPIO_TogglePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin);
+	  posZValue++;
+  }
+  if(htim->Instance == TIM3) {
+	  posRValue++;
   }
   /* USER CODE END Callback 1 */
 }

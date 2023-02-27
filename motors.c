@@ -32,25 +32,46 @@ static StepperMotor stepperMotors[NUMBER_OF_MOTORS]; //MOTOR_ROADIAL_ID, MOTOR_H
  * so that the motor goes into the desired position (preset on the motorProperty)
  * before setting the desired direction the function checks if that direction is enabled
  */
-uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection)
+uint8_t setMotorDirection(StepperMotor *stepperMotors, uint8_t motor_id, uint8_t direction)
 {
+	//OK = 0; error = 1;
+	uint8_t return_value;
+
+	if(MOTORALLOW_BOTHDIR == stepperMotors[motor_id].allowedDir){
+		stepperMotors[motor_id].dir = direction;
+		return return_value = 0;
+	}
+	else if(MOTORALLOW_POSDIR == stepperMotors[motor_id].allowedDir){
+
+	}
+	else if(MOTORALLOW_NEGDIR == stepperMotors[motor_id].allowedDir){
+
+	}
+	else if(MOTORALLOW_NODIR == stepperMotors[motor_id].allowedDir){
+		stepperMotors[motor_id].dir = MOTORDIR_UNDEFINED;
+		return return_value = 1;
+	}
+	else return return_value = 1;
+
+
+	/*
 	uint8_t retVal = 0u;
 	if(MOTORDIR_TODESIREDPOS == desiredDirection)
 	{
 		if (stepperMotors[ID].desiredPos > stepperMotors[ID].currPos)
 		{
-			/* reinvoke the function with new paramters */
+			// reinvoke the function with new paramters
 			return retVal = setMotorDirection(ID, MOTORDIR_POSITIVE);
 		}
 		else
 		{
-			/* reinvoke the function with new paramters */
+			// reinvoke the function with new paramters
 			return retVal = setMotorDirection(ID, MOTORDIR_NEGATIVE);
 		}
 	}
 	else if (MOTORDIR_POSITIVE == desiredDirection)
 	{
-		if((stepperMotors[ID].allowedDir & MOTORALLOW_POSDIR) /*>> (MOTORALLOW_POSDIR-1u)*/)
+		if((stepperMotors[ID].allowedDir & MOTORALLOW_POSDIR))
 		{
 			stepperMotors[ID].dir = MOTORDIR_POSITIVE;
 		}
@@ -62,7 +83,7 @@ uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection)
 	}
 	else if (MOTORDIR_NEGATIVE == desiredDirection)
 	{
-		if((stepperMotors[ID].allowedDir & MOTORALLOW_NEGDIR) /*>> (MOTORALLOW_NEGDIR-1u)*/)
+		if((stepperMotors[ID].allowedDir & MOTORALLOW_NEGDIR))
 		{
 			stepperMotors[ID].dir = MOTORDIR_NEGATIVE;
 		}
@@ -74,7 +95,7 @@ uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection)
 	}
 	else if (MOTORDIR_UNDEFINED == desiredDirection)
 	{
-		/* this one is probably not used */
+		// this one is probably not used
 		stepperMotors[ID].dir = MOTORDIR_UNDEFINED;
 		retVal |= (uint8_t)0x03;
 	}
@@ -83,14 +104,12 @@ uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection)
 		stepperMotors[ID].dir = MOTORDIR_UNDEFINED;
 		retVal |= (uint8_t)0x04;
 	}
+	*/
 
-	/* Write the necessary output */
-	if (0u == retVal)
-	{
-		HAL_GPIO_WritePin(stepperMotors[ID].dirPORT, stepperMotors[ID].dirPIN, desiredDirection);
-	}
+	// Write the output
+	HAL_GPIO_WritePin(stepperMotors[motor_id].dirPORT, stepperMotors[motor_id].dirPIN, direction);
 
-	return retVal;
+	return return_value;
 }
 
 
@@ -104,6 +123,7 @@ uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection)
  */
 uint32_t setAllDirectionsTowardsDesiredPos()
 {
+	/*
 	uint32_t retVal = 0u;
 
 	if( NUMBER_OF_MOTORS == 3u)
@@ -114,12 +134,14 @@ uint32_t setAllDirectionsTowardsDesiredPos()
 	}
 	else { retVal = 0xFFFFFFFF; }
 	return retVal;
+	*/
 }
 
 /*
- * @brief Check if the current position is the desired position
- * erős TODO
+ * Nem szükséges szoftveres helyzetlekérdezés
+ * Timerekkel és megszakításokkal lesz megoldva
  */
+/*
 bool posReached(const uint8_t ID)
 {
 	bool retVal = true;
@@ -130,9 +152,7 @@ bool posReached(const uint8_t ID)
 
 	return retVal;
 }
-/*
- * @brief checks if each motor has reached its desired position
- */
+
 bool posAllReached()
 {
 	bool retVal = true;
@@ -148,76 +168,118 @@ bool posAllReached()
 	else { retVal = false; }
 	return retVal;
 }
+*/
 
 
 /*
- * @brief starts the PWM of the motor
+ * Sets the state of the motor to running and starts timer PWM with IT
  */
-void startMotorPWM(const uint8_t ID)
+void startMotor(StepperMotor *stepperMotors, uint8_t motor_id)
 {
-	stepperMotors[ID].motorState = MOTORSTATE_RUNNING;
-	HAL_TIM_PWM_Start_IT(&htim1, stepperMotors[ID].TIM_CH);
+	stepperMotors[motor_id].motorState = MOTORSTATE_RUNNING;
+	HAL_TIM_PWM_Start_IT(stepperMotors[motor_id].TIM, stepperMotors[motor_id].TIM_CH);
+	return;
 }
 
 /*
- * This function starts the 3 PWM signal generation for the 3 main motors
+ * Check out: startMotor
  */
-void startAllMotorPWMs()
+void startAllMotors(StepperMotor *stepperMotors, uint8_t motor_id)
 {
-	uint8_t tempMotorNumber = NUMBER_OF_MOTORS;
-
-	for (uint8_t idx = 0; idx < tempMotorNumber; idx++)
-	{
-		if (!posReached(idx))
-		{
-			startMotorPWM(idx);
-		}
-	}
+	for (uint8_t cyc_idx = 0; cyc_idx < NUMBER_OF_MOTORS; cyc_idx++)
+		startMotor(stepperMotors, cyc_idx);
+	return;
 }
 
+
 /*
- * TODO RCRValue állítja a timer számláló regiszter maximumát
- * Kéne egy függvény aminek fordulatszámot adok meg, kiszámolja a freki és prescaler alapján
- * a helyes RCRValue-t és felülírja
+ * In a nutshell: RCR delays the timer IT.
+ * The RC register value does not effect the frequency of the PWM signal.
+ * However it delays the interrupt which occurs every time when the timer reaches the counter period.
+ * This disables IT ENA, until the timer reaches the counter period RCR times.
+ *
+ * Example:
+ * Timer1.CNT = 10; Timer1.RCR = 3;
+ *
+ * Let's start to count:
+ * 0 . 1 . 2 ... 8 . 9 -> no IT // RCR-1
+ * 0 . 1 . 2 ... 8 . 9 -> no IT // RCR-2
+ * 0 . 1 . 2 ... 8 . 9 -> no IT // RCR-3
+ * 0 . 1 . 2 ... 8 . 9 -> IT starts
+ *
+ * STM32 Nucleo F334 Reference Manual: page 694
+ *
+ * TODO: Kéne egy függvény aminek fordulatszámot adok meg, kiszámolja a freki és prescaler alapján
+ *       a helyes RCRValue-t és felülírja
  */
-void changeMotorSpeed(const uint8_t RCRValue)
+void changeMotorSpeed(StepperMotor *stepperMotors, uint8_t motor_id, uint8_t RCRValue)
 {
-	/* this could be more general, but the 3 motor is never likely to change timer-base
-	 * and now they all shave timer1, this function works well like this */
-	htim1.Init.RepetitionCounter = RCRValue;
-	if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+	stepperMotors[motor_id].TIM->Init.RepetitionCounter = RCRValue;
+	if (HAL_TIM_Base_Init(stepperMotors[motor_id].TIM) != HAL_OK)
 	{
 		Error_Handler();
 	}
-}
-
-
-
-/*
- * @brief This function stops the motor received in the parameter
- */
-void stopMotorPWM(const uint8_t ID)
-{
-	stepperMotors[ID].motorState = MOTORSTATE_STOPPED;
-	HAL_TIM_PWM_Stop_IT(&htim1, stepperMotors[ID].TIM_CH);
+	return;
 }
 
 
 /*
- * @brief This function checks if any of the motors have to be stopped based on the current and desired position
+ * Sets the state of the motor to stopped and stops timer PWM
  */
-void stopAllMotorBasedPos(StepperMotor* motors)
+void stopMotor(StepperMotor *stepperMotors, uint8_t motor_id)
 {
-	for (uint8_t idx = 0; idx < NUMBER_OF_MOTORS; idx++)
-	{
-		if ((MOTORSTATE_RUNNING == motors[idx].motorState) && posReached(idx))
-		{
-			stopMotorPWM(idx);
-		}
+	stepperMotors[motor_id].motorState = MOTORSTATE_STOPPED;
+	HAL_TIM_PWM_Stop_IT(stepperMotors[motor_id].TIM, stepperMotors[motor_id].TIM_CH);
+	return;
+}
+
+
+/*
+ * Check out: stopMotor.
+ */
+void stopAllMotors(StepperMotor *stepperMotors, uint8_t motor_id)
+{
+	for (uint8_t cyc_idx = 0; cyc_idx < NUMBER_OF_MOTORS; cyc_idx++)
+		if(MOTORSTATE_RUNNING == stepperMotors[cyc_idx].motorState)
+			stopMotor(stepperMotors, cyc_idx);
+	return;
+}
+
+
+/*
+ * Controls a motor with two GPIO pin.
+ * One pin drives the motor to positive direction, the other drives it to the opposite direction.
+ *
+ */
+uint8_t motorControlViaGPIO (GPIO_TypeDef* pos_button_port, uint16_t pos_button_pin, GPIO_TypeDef* neg_button_port, uint16_t neg_button_pin, StepperMotor *stepperMotors, uint8_t motor_id)
+{
+	//stopped -> 0, started -> 1
+	uint8_t return_value;
+
+	GPIO_PinState pos_button = HAL_GPIO_ReadPin(pos_button_port, pos_button_pin);
+	GPIO_PinState neg_button = HAL_GPIO_ReadPin(neg_button_port, neg_button_pin);
+
+	if(pos_button && neg_button){
+	  HAL_TIM_PWM_Stop_IT(stepperMotors[motor_id].TIM, stepperMotors[motor_id].TIM_CH);
+	  return_value = 0;
 	}
+	else if(pos_button){
+	  HAL_GPIO_WritePin(stepperMotors[motor_id].dirPORT, stepperMotors[motor_id].dirPIN, MOTORDIR_POSITIVE);
+	  startMotor(stepperMotors, motor_id);
+	  //HAL_TIM_PWM_Start_IT(stepperMotors[motor_id].TIM, stepperMotors[motor_id].TIM_CH);
+	  return_value = 1;
+	}
+	else if(neg_button) {
+	  HAL_GPIO_WritePin(stepperMotors[motor_id].dirPORT, stepperMotors[motor_id].dirPIN, MOTORDIR_NEGATIVE);
+	  startMotor(stepperMotors, motor_id);
+	  return_value = 1;
+	}
+	else {
+	  HAL_TIM_PWM_Stop_IT(stepperMotors[motor_id].TIM, stepperMotors[motor_id].TIM_CH);
+	  return_value = 0;
+	}
+	return return_value;
 }
-
-
 
 
 /*

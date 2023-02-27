@@ -39,6 +39,11 @@
 /* END defines */
 
 /* BEGIN type definitions */
+
+/*
+ * Position of the tool.
+ * The arm will be positioned by this struct.
+ */
 typedef struct {
 	uint32_t x;
 	uint32_t y;
@@ -51,14 +56,12 @@ typedef struct{
 	uint8_t ID;
 	volatile uint32_t currPos;
 	volatile uint32_t desiredPos;
-	volatile uint8_t dir;   // MOTORDIR_NEGATIVE, MOTORDIR_POSITIVE, MOTORDIR_UNDEFINED
+	volatile uint8_t dir;   //MOTORDIR_NEGATIVE, MOTORDIR_POSITIVE, MOTORDIR_UNDEFINED
 	uint8_t allowedDir;		//MOTORALLOW_BOTHDIR, MOTORALLOW_POSDIR, MOTORALLOW_NEGDIR, MOTORALLOW_NODIR
 	uint8_t motorState;     //MOTORSTATE_RUNNING, MOTORSTATE_STOPPED
 
-	//these are needed, so more general functions can be implemented
-	//COM is not listed here, as that shall always be 0
-	uint32_t TIM_CH;	//0:0x00000000, 1:0x..04, 2:0x..08, :0x0..0C
-	TIM_HandleTypeDef* TIM; //address of the used timer
+	uint32_t TIM_CH;		//TIM_CHANNEL_x
+	TIM_HandleTypeDef* TIM; //&htimx
 
 	GPIO_TypeDef* enablePORT;
 	uint16_t enablePIN;
@@ -66,18 +69,24 @@ typedef struct{
 	GPIO_TypeDef* dirPORT;
 	uint16_t dirPIN;
 } StepperMotor;
+
 /* END type definitions */
 
+
 /* BEGIN API function definitions */
-uint8_t setMotorDirection(const uint8_t ID, const uint8_t desiredDirection);
+uint8_t setMotorDirection(StepperMotor *stepperMotors, uint8_t motor_id, uint8_t direction);
 uint32_t setAllDirectionsTowardsDesiredPos();
-bool posReached(const uint8_t ID);
-bool posAllReached();
-void startMotorPWM(const uint8_t ID);
-void startAllMotorPWMs();
-void changeMotorSpeed(const uint8_t RCRValue);
-void stopMotorPWM(const uint8_t ID);
-void stopAllMotorBasedPos();
+//bool posReached(const uint8_t ID);
+//bool posAllReached();
+
+void startMotor(StepperMotor *stepperMotors, uint8_t motor_id);
+void startAllMotors(StepperMotor *stepperMotors, uint8_t motor_id);
+void stopMotor(StepperMotor *stepperMotors, uint8_t motor_id);
+void stopAllMotors(StepperMotor *stepperMotors, uint8_t motor_id);
+
+void changeMotorSpeed(StepperMotor *stepperMotors, uint8_t motor_id, uint8_t RCRValue);
+
+uint8_t motorControlViaGPIO (GPIO_TypeDef* pos_button_port, uint16_t pos_button_pin, GPIO_TypeDef* neg_button_port, uint16_t neg_button_pin, StepperMotor *stepperMotors, uint8_t motor_id);
 //void incrementSTMotorPos(const uint8_t ID);
 /* END API function definitions */
 
