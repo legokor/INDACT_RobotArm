@@ -5,8 +5,9 @@
  * @date 2023. febr. 8.
  * @author Varga Péter
  *******************************************************************************
- * @brief
- * 
+ * @brief Declaration of the WIFI reception task and the related variables and
+ *      functions.
+ *
  *******************************************************************************
  */
 

@@ -5,8 +5,9 @@
  * @date Jan 19, 2023
  * @author Varga Péter
  *******************************************************************************
- * @brief
- * 
+ * @brief Declaration of a class that provides methods for the communication
+ *      with a WiFi module.
+ *
  *******************************************************************************
  */
 
@@ -79,7 +80,7 @@ public:
      * @param huart Pointer of the handle of the UART that the WiFi modul uses
      */
     WIFI(UART_HandleTypeDef *huart);
-    /** Destructor */
+    /** Destructor. */
     virtual ~WIFI();
 
     /**

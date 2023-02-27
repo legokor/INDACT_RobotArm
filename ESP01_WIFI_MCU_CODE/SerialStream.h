@@ -5,8 +5,8 @@
  * @date Feb 7, 2023
  * @author Varga  Péter
  *******************************************************************************
- * @brief
- * 
+ * @brief Declaration of a class that handles serial communication through UART.
+ *
  *******************************************************************************
  */
 
