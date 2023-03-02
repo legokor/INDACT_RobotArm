@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>INDACT Robotkar</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        h1 {
+            padding: 10px;
+            margin: 10px;
+            text-align: center;
+        }
+
+        #status,
+        #coordinates {
+            font-size: 24px;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: lightgray;
+            padding: 10px;
+            margin: 10px;
+        }
+
+        .controls {
+            border: 2px solid black;
+            border-collapse: collapse;
+            width: 100%;
+            margin: 10px;
+        }
+
+        .controls th,
+        .controls td {
+            border-bottom: 1px solid #ddd;
+            width: 50%;
+        }
+
+        .controls th {
+            font-size: 24px;
+        }
+
+        #position {
+            padding: 10px;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        button {
+            border: 1px solid black;
+            border-radius: 8px;
+            color: black;
+            width: 80px;
+            margin: 4px;
+            padding: 10px;
+            text-align: center;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 28px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: darkgray;
+            color: white;
+        }
+    </style>
+    <script>
+        function requestData() {
+            // Send a GET request to the URL of the server
+            const xhr = new XMLHttpRequest();
+            const method = 'GET';
+            const url = window.location.origin + '/data';
+
+            xhr.open(method, url, true);
+            xhr.responseType = 'json';
+            xhr.onload = () => {
+                const status = xhr.status;
+                if (status === 200) {
+                    // The request has been completed successfully
+                    const data = xhr.response;
+                    console.log(data);
+
+                    // JSON
+                    // {
+                    //     status: ...,
+                    //     csys: {
+                    //         A: ...,
+                    //         B: ...,
+                    //         C: ... 
+                    //     },
+                    //     position: ...
+                    // }
+
+                    // Use data, change the DOM
+                    if (data.status === '') {
+                        document.getElementById('status_msg').innerHTML = '( ... )';
+                    } else {
+                        document.getElementById('status_msg').innerHTML = data.status;
+                    }
+
+                    document.getElementById('axis_A').innerHTML = data.csys.A + ' tengely';
+                    document.getElementById('axis_B').innerHTML = data.csys.B + ' tengely';
+                    document.getElementById('axis_C').innerHTML = data.csys.C + ' tengely';
+
+                    if (data.position === '') {
+                        document.getElementById('status_msg').innerHTML = 'Poz&iacute;ci&oacute;: ( ... )';
+                    } else {
+                        document.getElementById('position').innerHTML = 'Poz&iacute;ci&oacute;: ' + data.position;
+                    }
+                } else {
+                    // There has been an error with the request!
+                    console.log('Something went wrong! Received status: ' + status);
+                }
+            };
+            xhr.onerror = () => {
+                console.log('An error occured.');
+            }
+            xhr.send();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            requestData();
+
+            // Send an action request to the server if a button is pressed.
+            document.querySelectorAll('button').forEach((button) => {
+                button.onclick = () => {
+                    // Send a GET request to the URL of the server
+                    const xhr = new XMLHttpRequest();
+                    const method = 'GET';
+                    const url = window.location.origin + '/action/' + button.dataset.action;
+
+                    xhr.open(method, url, true);
+                    xhr.onload = () => {
+                        const status = xhr.status;
+                        if (status === 200) {
+                            // The request has been completed successfully
+                            console.log('Data sent and response loaded.');
+                        } else {
+                            // Oh no! There has been an error with the request!
+                            console.log('Something went wrong! Received status: ' + status);
+                        }
+                    };
+                    xhr.onerror = () => {
+                        console.log('An error occured.');
+                    }
+                    xhr.send();
+                }
+            });
+
+            // Get data from the webserver (WiFi module)
+            const intervalId = setInterval(requestData, 4000);
+        });
+    </script>
+</head>
+
+<body>
+    <h1>INDACT Robotkar</h1>
+    <div id="status">
+        <b>&Aacute;llapot: </b><br>
+        <div id="status_msg">...</div>
+    </div>
+    <table class="controls">
+        <tr>
+            <td id="position" colspan="2">Poz&iacute;ci&oacute;: ...</td>
+        </tr>
+        <tr>
+            <th>
+                <div id="axis_A">A tengely</div>
+            </th>
+            <td>
+                <button data-action="ap">+</button>
+                <button data-action="am">-</button>
+            </td>
+        </tr>
+        <tr>
+            <th>
+                <div id="axis_B">B tengely</div>
+            </th>
+            <td>
+                <button data-action="bp">+</button>
+                <button data-action="bm">-</button>
+            </td>
+        </tr>
+        <tr>
+            <th>
+                <div id="axis_C">C tengely</div>
+            </th>
+            <td>
+                <button data-action="cp">+</button>
+                <button data-action="cm">-</button>
+            </td>
+        </tr>
+        <tr>
+            <th>Alaphelyzet</th>
+            <td>
+                <button data-action="hx">H</button>
+            </td>
+        </tr>
+    </table>
+    <div id="coordinates">
+        <b>Koordin&aacute;ta rendszer v&aacute;lt&aacute;s:</b>
+        (r, &phi;, z) vagy (x, y, z)
+        <button data-action="kx">C</button>
+    </div>
+</body>
+
+</html>

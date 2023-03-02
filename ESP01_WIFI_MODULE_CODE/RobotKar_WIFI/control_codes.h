@@ -13,9 +13,6 @@
 #ifndef CONTROL_CODES_H_
 #define CONTROL_CODES_H_
 
-#include <stdint.h>
-#include <WString.h>
-
 /**
  * @brief Enum for the request types
  */
@@ -29,16 +26,17 @@ enum class RequestType {
   C_PLUS,
   C_MINUS,
   HOME,
-  CHANGE_COORDINATES
+  CHANGE_COORDINATES,
+  DATA
 };
 
 /**
  * @brief Returns the request type of a given request string.
- * @param req A string containing the request
+ * @param req A string containing the first line of the HTTP request
  * @return Type of the request, can be anything specified in the RequestType
  *        enum
  */
-RequestType matchRequest(const String& req);
+RequestType matchRequest(const char* request);
 
 /**
  * @brief Prepares a message containing the type of a request.

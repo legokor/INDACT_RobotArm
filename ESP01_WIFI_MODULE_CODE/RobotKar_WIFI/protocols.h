@@ -34,6 +34,7 @@
 #define STR_STATUS "ST"
 #define STR_CHANGE_TO_CYLINDRICAL "CTC"
 #define STR_CHANGE_TO_RECTANGULAR "CTR"
+#define STR_POSITION "PO"
 /**@}*/
 
 /**@{*/
