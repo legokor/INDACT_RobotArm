@@ -14,7 +14,7 @@
 
 #include <string.h>
 
-#define SERIAL_TX_TIMEOUT 20
+#define SERIAL_TX_TIMEOUT_MS 20
 #define STREAM_RX_BLOCK_TIME_MS 20
 
 namespace ESP01
@@ -34,7 +34,7 @@ SerialStream::~SerialStream()
 
 void SerialStream::sendMessage(const char *msg, size_t size)
 {
-    if (HAL_UART_Transmit(huart, (const uint8_t*)msg, size * sizeof(char), SERIAL_TX_TIMEOUT)
+    if (HAL_UART_Transmit(huart, (const uint8_t*)msg, size * sizeof(char), SERIAL_TX_TIMEOUT_MS)
             != HAL_OK)
     {
         throw std::runtime_error("Serial transmission failed.");
@@ -62,10 +62,11 @@ bool SerialStream::receiveMessage(char *msg, size_t msg_max_size)
                 {
                     // Close the string
                     msg[idx - 2] = '\0';
+
                     // Reception successful
                     return true;
                 }
-                // Save the new character to the message buffer space
+                // Save the previous character to the message buffer space
                 msg[idx - 2] = rch[1];
             }
             idx++;

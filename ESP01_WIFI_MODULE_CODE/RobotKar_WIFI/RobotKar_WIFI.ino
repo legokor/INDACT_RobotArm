@@ -35,12 +35,6 @@
  */
 #define EXT_LED 1
 
-/**
- * @brief The maximum amount of time in milliseconds that the module can wait
- *        for a successful connection (WiFi station connection).
- */
-#define CONNECT_TIMEOUT_MS 30000
-
 // ////////////////////////////////////////////////////////////////////////////
 // Using statements
 // ////////////////////////////////////////////////////////////////////////////
@@ -310,6 +304,14 @@ void interpretCommand(const char *message)
             sendConfirm();
             ESP.reset();
         }
+        else if (strcmp_P(command, PSTR(STR_SYNCHRONIZE)) == 0)
+        {
+            const char *str_sync_code = STR_SYNC_CODE;
+            for (int i = 0; i < SYNC_NUMBER; i++)
+            {
+                Serial.println(str_sync_code);
+            }
+        }
         else if (strcmp_P(command, PSTR(STR_CONNECT_STATION)) == 0)
         {
             sendConfirm();
@@ -322,7 +324,7 @@ void interpretCommand(const char *message)
         }
         else if (strcmp_P(command, PSTR(STR_SSID)) == 0)
         {
-            if ((matches.size() < 3) ||  (matches[2].matched == false))
+            if ((matches.size() < 3) || (matches[2].matched == false))
             {
                 sendFail();
             }

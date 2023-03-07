@@ -19,6 +19,7 @@
 
 #include "FreeRTOS.h"
 #include "queue.h"
+#include "event_groups.h"
 
 #include "usart.h"
 #include "SerialStream.h"
@@ -41,6 +42,18 @@ enum class RequestType
     HOMING, /**< HOMING Begin homing sequence */
     CHANGE_COORDINATES, /**< CHANGE_COORDINATES Change the coordinate system of the robot arm */
 };
+
+/**
+ * @brief Type for the responses that the WiFi module can send to the controller.
+ */
+enum class ResponseType
+{
+    OK, /**< OK OK */
+    FAIL, /**< FAIL Fail */
+    IP, /**< IP IP address */
+    SYNC /**< SYNC Synchronization code */
+};
+
 /**
  * @brief Type for the possible coordinate systems that the controller can use.
  */
@@ -60,17 +73,22 @@ public:
     SerialStream *serial;
 
 private:
-    const size_t messageQueueSize = 16;
-    QueueHandle_t messageQueue;
-
     const size_t requestQueueSize = 32;
     QueueHandle_t requestQueue;
+
+    const uint32_t ip_bit = 1 << 0;
+    const uint32_t ok_bit = 1 << 1;
+    const uint32_t fail_bit = 1 << 2;
+    const uint32_t sync_bit = 1 << 3;
+
+    EventGroupHandle_t responseEventGroup;
 
     std::string ssid;
     std::string password;
 
     bool ssid_set = false;
     bool password_set = false;
+    bool ip_set = false;
 
     std::string ip_address;
 
@@ -80,7 +98,7 @@ public:
      * @param huart Pointer of the handle of the UART that the WiFi modul uses
      */
     WIFI(UART_HandleTypeDef *huart);
-    /** Destructor. */
+    /** @brief Destructor. */
     virtual ~WIFI();
 
     /**
@@ -105,32 +123,39 @@ public:
      *          inside the WiFi module too.
      * @param ssid SSID in character string format
      */
-    void setSSID(std::string ssid);
+    void setSSID(const std::string ssid);
     /**
      * @brief Setter method for the WiFi password.
      * @details This method sets the password stored in this class and attempts to set this
      *          parameter inside the WiFi module too.
      * @param password Password in character string format
      */
-    void setPassword(std::string password);
+    void setPassword(const std::string password);
     /**
-     * @brief Setter method for the WiFi password.
-     * @details This method attempts to set the status message stored in the WiFi module.
+     * @brief Setter method for the status message.
+     * @details This method attempts to set the status message displayed on the graphical user
+     *          interface.
      * @param status Status message in character string format
      */
-    void setStatusMessage(std::string status);
+    void setStatusMessage(const std::string status);
     /**
      * @brief Attempt to change the coordinate system displayed by the WiFi module.
      * @param csys Type of the coordinate system
      */
-    void setCoordinateSystem(CoordinateSystem csys);
+    void setCoordinateSystem(const CoordinateSystem csys);
+    /**
+     * @brief Setter method for the WiFi password.
+     * @details This method attempts to set the position displayed on the graphical user interface.
+     * @param position Position in character string format
+     */
+    void setPosition(const std::string position);
 
     /**
      * @brief Attempt to connect to an existing WiFi network with the WiFi module. The SSID and the
      *          password of the network have to be already set.
      * @return True if the connection was successful otherwise false
      */
-    bool connectToNetwork(void);
+    void connectToNetwork(void);
     /**
      * @brief Attempt to set up a soft access point with the WiFi module.
      */
@@ -140,6 +165,12 @@ public:
      * @brief Attempt to reset the WiFi module.
      */
     void resetModule(void);
+
+    /**
+     * @brief Empty the response queue and attempt synchronization of the serial channel.
+     * @return True if the synchronization was successful, otherwise false
+     */
+    bool synchronizeModule(void);
 
     /**
      * @brief Receive the next request from the WiFi module.
@@ -154,16 +185,16 @@ public:
     void receive(void);
 
 private:
-    RequestType decodeRequest(const char *rqst);
-
     void serialTransmitMessage(const char *msg, uint16_t size);
-    std::string serialReceiveMessage(void);
+
+    bool processMessage(const char *msg);
+    bool decodeRequest(const char *rqst);
+    bool decodeResponse(const char *resp);
+    bool checkReply(void);
 
     void setModuleParam(
             const char *param_name, uint16_t size_name,
             const char *param_value, uint16_t size_value);
-    bool checkReply(void);
-    void demandConfirm(void);
 };
 
 } /* namespace ESP01 */

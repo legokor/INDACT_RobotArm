@@ -13,20 +13,31 @@
 #ifndef PROTOCOLS_H_
 #define PROTOCOLS_H_
 
-/**@{*/
 /**
  * @brief The sizes of the different strings that the controller can send to
  *        the WiFi module.
  */
+/**@{*/
 #define MESSAGE_MAX_SIZE 128
 #define WIFI_STRING_SIZE 32
 /**@}*/
 
-/**@{*/
+/**
+ * @brief Number of times that the synchronization code has to be sent on a synchronization attempt.
+ */
+#define SYNC_NUMBER 4
+
+/**
+ * @brief The maximum amount of time in milliseconds to wait for a successful connection.
+ */
+#define CONNECT_TIMEOUT_MS 30000
+
 /**
  * @brief Command messages from the controller to the WiFi module.
  */
+/**@{*/
 #define STR_RESET "RS"
+#define STR_SYNCHRONIZE "SYNC"
 #define STR_CONNECT_STATION "CO"
 #define STR_SETUP_ACCESS_POINT "AP"
 #define STR_SSID "SS"
@@ -50,8 +61,10 @@
 /**
  * @brief Response messages from the WiFi module to the controller.
  */
+#define STR_SYNC_CODE { 0xFF, 0xFF, '\0' }
 #define STR_CONFIRM "OK"
 #define STR_FAIL "FA"
+#define STR_IP "IP"
 /**@}*/
 
 /**@{*/

@@ -36,7 +36,7 @@ private:
     StreamBufferHandle_t rxBuffer;
 
     const size_t rxBufferSize;
-    const size_t rxTriggerLevel = 1;
+    const size_t rxTriggerLevel = sizeof(char);
 
     const char *msgEndMarker = "\r\n";
 
