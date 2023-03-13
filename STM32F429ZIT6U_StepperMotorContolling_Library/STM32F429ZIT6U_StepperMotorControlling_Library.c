@@ -12,7 +12,6 @@
 #include "stm32f4xx_hal.h"
 #include "StepperMotorControll.h"
 /** Functions ----------------------------------------------------------------*/
-
 /*
  * Set manually the direction of a motor.
  * If allowedDir prohibits a direction, output value will be 1 and dir wont be overwritten.
@@ -220,93 +219,50 @@ void allMotorOFF(StepperMotor *stepperMotors)
 
 
 /*
- * Since I don't have a clue how the wifi modul will communicate I wrote some (usefull) functions in advance.
+ * The WIFI module use a different enum declaration for it's commands then me.
+ * Thats why I need to "translate" them.
  */
-void command_Z_stop (StepperMotor *stepperMotors){
-	motorOFF(stepperMotors, MOTOR_Z_ID);
-	return;
-}
-void command_Z_up (StepperMotor *stepperMotors){
-	startMotor(stepperMotors, MOTOR_Z_ID, MOTORDIR_POSITIVE);
-	return;
-}
-void command_Z_down (StepperMotor *stepperMotors){
-	startMotor(stepperMotors, MOTOR_Z_ID, MOTORDIR_NEGATIVE);
-	return;
-}
+MovementCommands translate_incomingInstruction(RequestType incoming_instruction){
+	MovementCommands return_value;
 
-void command_R_stop (StepperMotor *stepperMotors){
-	motorOFF(stepperMotors, MOTOR_R_ID);
-	return;
-}
-void command_R_forward (StepperMotor *stepperMotors){
-	startMotor(stepperMotors, MOTOR_R_ID, MOTORDIR_POSITIVE);
-	return;
-}
-void command_R_backward (StepperMotor *stepperMotors){
-	startMotor(stepperMotors, MOTOR_R_ID, MOTORDIR_NEGATIVE);
-	return;
-}
-
-void command_FI_stop (StepperMotor *stepperMotors){
-	motorOFF(stepperMotors, MOTOR_FI_ID);
-	return;
-}
-void command_FI_counterclockwise (StepperMotor *stepperMotors){
-	startMotor(stepperMotors, MOTOR_FI_ID, MOTORDIR_POSITIVE);
-	return;
-}
-void command_FI_clockwise (StepperMotor *stepperMotors){
-	startMotor(stepperMotors, MOTOR_FI_ID, MOTORDIR_NEGATIVE);
-	return;
-}
-
-
-/*
- * The funcion overwrites the @current_position variable. When all of the motors reaches their limit, @current_position
- * gets all zero value.
- * The @limit_switches array must contain 6 element:
- * limit_switches[0] : FI axis' zero point (when the arm is rotated all the way counter-clockwise)
- * limit_switches[1] : FI axis' maximal positive excursion (rotated all the way clockwise)
- * limit_switches[2] : Z axis' zero point (lower switch)
- * limit_switches[3] : Z axis' maximal positiv excursion (upper sitch)
- * limit_switches[4] : R axis' zero ponit (when the arm is fully retracted)
- * limit_switches[5] : R axis' maximal positive excursion (the arm reaches the furthest)
- */
-uint8_t command_Homing(StepperMotor *stepperMotors, ToolPosition *current_position, GPIO_PinState *limit_switches){
-	uint8_t return_value, motorstart_error;
-
-	motorstart_error = startAllMotor(stepperMotors, MOTORDIR_NEGATIVE);
-
-	if(0 == motorstart_error){
-		// ha egy végálláskapcsoló jelez, leállítom a motort és beírom a currpos változóba a nullát
-		// ha megtörtént mindhárom tengelyen ez, akkor bemegyek középre
-
-		while((GPIO_PIN_SET == limit_switches[1]) && (GPIO_PIN_SET == limit_switches[3]) && (GPIO_PIN_SET == limit_switches[5])){
-			//FI axis check
-			if(GPIO_PIN_SET == limit_switches[1]){
-				motorOFF(stepperMotors, MOTOR_FI_ID);
-				current_position->fi = 0;
-			}
-
-			//Z axis check
-			if(GPIO_PIN_SET == limit_switches[3]){
-				motorOFF(stepperMotors, MOTOR_Z_ID);
-				current_position->z = 0;
-			}
-
-			//R axis check
-			if(GPIO_PIN_SET == limit_switches[5]){
-				motorOFF(stepperMotors, MOTOR_R_ID);
-				current_position->r = 0;
-			}
+	switch (incoming_instruction){
+		case INVALID: {
+			return_value = X_INVALID;
+			break;
 		}
-		return_value = 0;
+		case AXIS_A_PLUS: {
+			return_value = Z_UP;
+			break;
+		}
+		case AXIS_A_MINUS: {
+			return_value = Z_DOWN;
+			break;
+		}
+		case AXIS_B_PLUS: {
+			return_value = R_FORWARD;
+			break;
+		}
+		case AXIS_B_MINUS: {
+			return_value = R_BACKWARD;
+			break;
+		}
+		case AXIS_C_PLUS: {
+			return_value = FI_COUNTERCLOCKWISE;
+			break;
+		}
+		case AXIS_C_MINUS: {
+			return_value = FI_CLOCKWISE;
+			break;
+		}
+		case HOMING: {
+			return_value = X_HOMING;
+			break;
+		}
+		case CHANGE_COORDINATES: {
+			return_value = X_CHANGE_COORDINATES;
+			break;
+		}
 	}
-	else{
-		return_value = motorstart_error;
-	}
-
 	return return_value;
 }
 
@@ -342,48 +298,6 @@ uint8_t controlMotor_viaGPIO (GPIO_TypeDef* pos_button_port, uint16_t pos_button
 	return return_value;
 }
 
-
-/*
- * Lets say, that there is a controller somewhere, that transmits commands to a device trough Bluetooth or wifi.
- * In this case the controller sends high-level commands.
- * The reciver device translates the message and sends it to the MCU via UART.
- * This function implements these high-level commands with low-level functions, so the MCU can execute them.
- */
-void controlMotor_viaUART(StepperMotor *stepperMotors, MovementCommands command){
-
-	switch(command){
-		case Z_STOP: {
-			command_Z_stop(stepperMotors);
-		}
-		case Z_UP: {
-			command_Z_up(stepperMotors);
-		}
-		case Z_DOWN:{
-			command_Z_down(stepperMotors);
-		}
-		case R_STOP: {
-			command_R_stop(stepperMotors);
-		}
-		case R_FORWARD:{
-			command_R_forward(stepperMotors);
-		}
-		case R_BACKWARD:{
-			command_R_backward(stepperMotors);
-		}
-		case FI_STOP: {
-			command_FI_stop(stepperMotors);
-		}
-		case FI_COUNTERCLOCKWISE:{
-			command_FI_counterclockwise(stepperMotors);
-		}
-		case FI_CLOCKWISE:{
-			command_FI_clockwise(stepperMotors);
-		}
-		default: {}
-	}
-
-	return;
-}
 
 
 /*

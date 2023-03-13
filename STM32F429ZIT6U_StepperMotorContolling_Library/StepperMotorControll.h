@@ -9,6 +9,7 @@
 #pragma once
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
 
 /*
  * motor state defines
@@ -49,22 +50,55 @@
 
 
 /*
+ *
+ */
+#define MOTOR_FI_MAXPOS 	(uint32_t)7500u
+#define MOTOR_Z_MAXPOS 		(uint32_t)6500u
+#define MOTOR_R_MAXPOS 		(uint32_t)600u
+#define MOTOR_FI_MICROSTEP 	(uint32_t)375u
+#define MOTOR_Z_MICROSTEP	(uint32_t)325u
+#define MOTOR_R_MICROSTEP 	(uint32_t)30u
+
+
+/*
  * These are general commands for the robot.
  * The source of these could be a remote controller, a webpage or anything.
  */
 typedef enum {
-	Z_STOP = 0,
-	Z_UP = 1,
-	Z_DOWN = 2,
+	X_INVALID = 0,
 
-	R_STOP = 3,
-	R_FORWARD = 4,
-	R_BACKWARD = 5,
+	Z_STOP = 1,
+	Z_UP = 2,
+	Z_DOWN = 3,
 
-	FI_STOP = 6,
-	FI_COUNTERCLOCKWISE = 7,
-	FI_CLOCKWISE = 8
+	R_STOP = 4,
+	R_FORWARD =5,
+	R_BACKWARD = 6,
+
+	FI_STOP = 7,
+	FI_COUNTERCLOCKWISE = 8,
+	FI_CLOCKWISE = 9,
+
+	X_HOMING = 10,
+	X_CHANGE_COORDINATES = 11
 } MovementCommands;
+
+
+/*
+ * Type for the requests that the WiFi module can send to the controller.
+ */
+typedef enum
+{
+    INVALID, 			/**< INVALID Invalid request*/
+    AXIS_A_PLUS, 		/**< AXIS_A_PLUS Move the robot in the positive direction of the A axis */
+    AXIS_A_MINUS, 		/**< AXIS_A_MINUS Move the robot in the negative direction of the A axis */
+    AXIS_B_PLUS, 		/**< AXIS_B_PLUS Move the robot in the positive direction of the B axis */
+    AXIS_B_MINUS, 		/**< AXIS_B_MINUS Move the robot in the negative direction of the B axis */
+    AXIS_C_PLUS, 		/**< AXIS_C_PLUS Move the robot in the positive direction of the C axis */
+    AXIS_C_MINUS, 		/**< AXIS_C_MINUS Move the robot in the negative direction of the C axis */
+    HOMING, 			/**< HOMING Begin homing sequence */
+    CHANGE_COORDINATES, /**< CHANGE_COORDINATES Change the coordinate system of the robot arm */
+}RequestType;
 
 
 /*
@@ -124,7 +158,8 @@ uint8_t setAllMotorDirTowardsDesiredPos(StepperMotor *stepperMotors, ToolPositio
 void motorON(StepperMotor *stepperMotors, uint8_t motor_id);
 
 /*
- * Check out: startMotor
+ * Starts all three motors.
+ * Check out: motorON() function.
  */
 void allMotorON(StepperMotor *stepperMotors);
 
@@ -148,7 +183,6 @@ uint8_t startMotor(StepperMotor *stepperMotors, uint8_t motor_id, uint8_t direct
  */
 uint8_t startAllMotor(StepperMotor *stepperMotors, uint8_t direction);
 
-
 /*
  * Stops timer PWM and sets the state of the motor to stopped.
  */
@@ -156,43 +190,20 @@ void motorOFF(StepperMotor *stepperMotors, uint8_t motor_id);
 
 /*
  * It brings the three motors to a stop.
- * Check out: stopMotor() function.
+ * Check out: motorOFF() function.
  */
 void allMotorOFF(StepperMotor *stepperMotors);
 
-void command_Z_stop (StepperMotor *stepperMotors);
-void command_Z_up (StepperMotor *stepperMotors);
-void command_Z_down (StepperMotor *stepperMotors);
-
-void command_R_stop (StepperMotor *stepperMotors);
-void command_R_forward (StepperMotor *stepperMotors);
-void command_R_backward (StepperMotor *stepperMotors);
-
-void command_FI_stop (StepperMotor *stepperMotors);
-void command_FI_counterclockwise (StepperMotor *stepperMotors);
-void command_FI_clockwise (StepperMotor *stepperMotors);
-
-
 /*
- * This drives all of the motors to the
- * The funcion overwrites the @current_position variable. When all of the motors reaches their limit, @current_position
- * gets all zero value.
- * The @limit_switches array must contain 6 element:
- * limit_switches[0] : FI axis' zero point (when the arm is rotated all the way counter-clockwise)
- * limit_switches[1] : FI axis' maximal positive excursion (rotated all the way clockwise)
- * limit_switches[2] : Z axis' zero point (lower switch)
- * limit_switches[3] : Z axis' maximal positiv excursion (upper sitch)
- * limit_switches[4] : R axis' zero ponit (when the arm is fully retracted)
- * limit_switches[5] : R axis' maximal positive excursion (the arm reaches the furthest)
+ * The WIFI module use a different enum declaration for it's commands then me.
+ * Thats why I need to "translate" them.
  */
-uint8_t command_Homing(StepperMotor *stepperMotors, ToolPosition *current_position, GPIO_PinState *limit_switches);
+MovementCommands translate_incomingInstruction(RequestType incoming_instruction);
 
 /*
  * Controls a motor with two GPIO pin.
  * One pin drives the motor to positive direction, the other drives it to the opposite direction.
- *
  */
 uint8_t controlMotor_viaGPIO (GPIO_TypeDef* pos_button_port, uint16_t pos_button_pin, GPIO_TypeDef* neg_button_port, uint16_t neg_button_pin, StepperMotor *stepperMotors, uint8_t motor_id);
 
-void controlMotor_viaUART(StepperMotor *stepperMotors, MovementCommands command);
 

@@ -62,6 +62,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define limswitch_r_null_Pin GPIO_PIN_2
+#define limswitch_r_null_GPIO_Port GPIOE
+#define limswitch_r_max_Pin GPIO_PIN_3
+#define limswitch_r_max_GPIO_Port GPIOE
+#define limswich_fi_null_Pin GPIO_PIN_4
+#define limswich_fi_null_GPIO_Port GPIOE
+#define limswitch_fi_max_Pin GPIO_PIN_5
+#define limswitch_fi_max_GPIO_Port GPIOE
 #define motor_z_DIR_Pin GPIO_PIN_13
 #define motor_z_DIR_GPIO_Port GPIOC
 #define motor_z_ENA_Pin GPIO_PIN_14
@@ -90,12 +98,8 @@ void Error_Handler(void);
 #define UART2_TX_STM_GPIO_Port GPIOA
 #define UART2_RX_STM_Pin GPIO_PIN_3
 #define UART2_RX_STM_GPIO_Port GPIOA
-#define SPI1_SCK_GPIOEXTENDER_Pin GPIO_PIN_5
-#define SPI1_SCK_GPIOEXTENDER_GPIO_Port GPIOA
 #define motor_r_PUL_Pin GPIO_PIN_6
 #define motor_r_PUL_GPIO_Port GPIOA
-#define SPI1_MOSI_GPIOEXTENDER_Pin GPIO_PIN_7
-#define SPI1_MOSI_GPIOEXTENDER_GPIO_Port GPIOA
 #define motor_fi_PUL_Pin GPIO_PIN_11
 #define motor_fi_PUL_GPIO_Port GPIOE
 #define motor_r_DIR_Pin GPIO_PIN_12
@@ -121,8 +125,10 @@ void Error_Handler(void);
 #define GreenLed_LD3_GPIO_Port GPIOG
 #define RedLed_LD4_Pin GPIO_PIN_14
 #define RedLed_LD4_GPIO_Port GPIOG
-#define SPI1_MISO_GPIOEXTENDER_Pin GPIO_PIN_4
-#define SPI1_MISO_GPIOEXTENDER_GPIO_Port GPIOB
+#define limswitch_z_null_Pin GPIO_PIN_0
+#define limswitch_z_null_GPIO_Port GPIOE
+#define limswitch_z_max_Pin GPIO_PIN_1
+#define limswitch_z_max_GPIO_Port GPIOE
 
 /* USER CODE BEGIN Private defines */
 

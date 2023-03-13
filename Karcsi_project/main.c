@@ -25,6 +25,9 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+//Define "gpio" for button control OR define "wifi" for controlling via webpage (wifi communication).
+#define gpio 1
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -38,8 +41,6 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-SPI_HandleTypeDef hspi1;
-
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
@@ -47,17 +48,40 @@ TIM_HandleTypeDef htim3;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
-osThreadId defaultTaskHandle;
-osThreadId controlTaskHandle;
-osThreadId commTaskHandle;
-osMessageQId commQueueHandle;
-osSemaphoreId semMotorR1Handle;
-osSemaphoreId semMotorPHorizontalHandle;
-osSemaphoreId semMotorPVerticalHandle;
+osThreadId indicator_blinkingHandle;
+osThreadId control_viaGPIOIHandle;
+osThreadId control_viaWIFIHandle;
+osThreadId updateLimSwitchHandle;
+osMessageQId WifiCommandsHandle;
 /* USER CODE BEGIN PV */
-static volatile uint32_t posRValue = 0;
-static volatile uint32_t posZValue = 0;
-static volatile uint32_t posFiValue = 0;
+//Array that contains the motor structs, offers easy acccess to motor variables
+static StepperMotor stepperMotors[NUMBER_OF_MOTORS];
+
+/*
+ * Pinstates of the limit switches
+ * The @limit_switches array must contain 6 element:
+ * limit_switches[0] : FI axis' zero point (when the arm is rotated all the way counter-clockwise)
+ * limit_switches[1] : FI axis' maximal positive excursion (rotated all the way clockwise)
+ * limit_switches[2] : Z axis' zero point (lower switch)
+ * limit_switches[3] : Z axis' maximal positiv excursion (upper sitch)
+ * limit_switches[4] : R axis' zero ponit (when the arm is fully retracted)
+ * limit_switches[5] : R axis' maximal positive excursion (the arm reaches the furthest)
+ */
+static GPIO_PinState limit_switches[6];
+
+static ToolPosition current_position;
+
+//Counting steps wihle moving
+static volatile uint32_t alltime_Rpos = 0;
+static volatile uint32_t alltime_Zpos = 0;
+static volatile uint32_t alltime_FIpos = 0;
+
+//Controlling Task output
+static uint8_t error_byte = 0;
+
+//
+static uint8_t homing_state = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -66,12 +90,12 @@ static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
-void StartDefaultTask(void const * argument);
-void StartRobotControlTask(void const * argument);
-void StartCommunicationTask(void const * argument);
+void fc_indicator_blinking(void const * argument);
+void fc_control_viaGPIO(void const * argument);
+void fc_control_viaWIFI(void const * argument);
+void fc_updateLimSwitch(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -89,50 +113,7 @@ void StartCommunicationTask(void const * argument);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	StepperMotor stepperMotors[3];
 
-	stepperMotors[MOTOR_FI_ID] = (StepperMotor) {
-			.ID = MOTOR_FI_ID,
-			.allowedDir = MOTORALLOW_BOTHDIR,
-			.motorState = MOTORSTATE_STOPPED,
-
-			.TIM_CH = TIM_CHANNEL_2,	//PE11
-			.TIM = &htim1,
-
-			.enablePORT = motor_fi_ENA_GPIO_Port,  //PC11
-			.enablePIN = motor_fi_ENA_Pin,
-
-			.dirPORT = motor_fi_DIR_GPIO_Port,	//PC8
-			.dirPIN = motor_fi_DIR_Pin,
-	};
-	stepperMotors[MOTOR_Z_ID] = (StepperMotor) {
-			.ID = MOTOR_Z_ID,
-			.allowedDir = MOTORALLOW_BOTHDIR,
-			.motorState = MOTORSTATE_STOPPED,
-
-			.TIM_CH = TIM_CHANNEL_1,	//PA0
-			.TIM = &htim2,
-
-			.enablePORT = motor_z_ENA_GPIO_Port,	//PC14
-			.enablePIN = motor_z_ENA_Pin,
-
-			.dirPORT = motor_z_DIR_GPIO_Port,	//PC13
-			.dirPIN = motor_z_DIR_Pin,
-	};
-	stepperMotors[MOTOR_R_ID] = (StepperMotor) {
-			.ID = MOTOR_R_ID,
-			.allowedDir = MOTORALLOW_BOTHDIR,
-			.motorState = MOTORSTATE_STOPPED,
-
-			.TIM_CH = TIM_CHANNEL_1,	//PA6
-			.TIM = &htim3,
-
-			.enablePORT = motor_r_ENA_GPIO_Port,  //PE15
-			.enablePIN = motor_r_ENA_Pin,
-
-			.dirPORT = motor_r_DIR_GPIO_Port,		//PE12
-			.dirPIN = motor_r_DIR_Pin,
-	};
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -156,7 +137,6 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM1_Init();
   MX_USART2_UART_Init();
-  MX_SPI1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
@@ -169,45 +149,94 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* definition and creation of WifiCommands */
+  osMessageQDef(WifiCommands, 20, uint8_t);
+  WifiCommandsHandle = osMessageCreate(osMessageQ(WifiCommands), NULL);
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* definition and creation of indicator_blinking */
+  osThreadDef(indicator_blinking, fc_indicator_blinking, osPriorityIdle, 0, 256);
+  indicator_blinkingHandle = osThreadCreate(osThread(indicator_blinking), (void*) (&error_byte));
+
+  /* definition and creation of control_viaGPIOI */
+  osThreadDef(control_viaGPIOI, fc_control_viaGPIO, osPriorityRealtime, 0, 2048);
+  control_viaGPIOIHandle = osThreadCreate(osThread(control_viaGPIOI), (void*) stepperMotors);
+
+  /* definition and creation of control_viaWIFI */
+  osThreadDef(control_viaWIFI, fc_control_viaWIFI, osPriorityRealtime, 0, 2048);
+  control_viaWIFIHandle = osThreadCreate(osThread(control_viaWIFI), (void*) stepperMotors);
+
+  /* definition and creation of updateLimSwitch */
+  osThreadDef(updateLimSwitch, fc_updateLimSwitch, osPriorityRealtime, 0, 1024);
+  updateLimSwitchHandle = osThreadCreate(osThread(updateLimSwitch), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  xTaskCreate(
+		  (void *)fc_indicator_blinking,  	//funtion to be called
+		  "LED Indicating Task",  			//Name of task
+		  256, 		   						//Stack size
+		  &error_byte, 		    			//parameter to pass to function
+		  1, 								//zero is the lowest
+		  NULL								//Taks handler
+		  );
+
+  xTaskCreate(
+		  (void *)fc_updateLimSwitch,  	//funtion to be called
+		  "Update limit_switches array",  			//Name of task
+		  256, 		   						//Stack size
+		  NULL, 		    			//parameter to pass to function
+		  1, 								//zero is the lowest
+		  NULL								//Taks handler
+		  );
+
+#ifdef gpio
+  xTaskCreate(
+		  (void *)fc_control_viaGPIO,  		//funtion to be called
+		  "GPIO Controlling Task",  		//Name of task
+		  2048, 		   					//Stack size
+		  stepperMotors, 		    		//parameter to pass to function
+		  1, 								//zero is the lowest
+		  NULL								//Taks handler
+		  );
+#endif
+
+
+#ifdef wifi
+  xTaskCreate(
+		  (void *)fc_control_viaWIFI,  		//funtion to be called
+		  "Wifi Controlling Task",  		//Name of task
+		  2048, 		   					//Stack size
+		  stepperMotors, 		    		//parameter to pass to function
+		  1, 								//zero is the lowest
+		  NULL								//Taks handler
+		  );
+#endif
+
+
+  vTaskStartScheduler();
+  /* USER CODE END RTOS_THREADS */
+
+  /* Start scheduler */
+  osKernelStart();
+
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  //Set the COM pins to GND
-  HAL_GPIO_WritePin(motor_fi_COM_GPIO_Port, motor_fi_COM_Pin, 0);
-  HAL_GPIO_WritePin(motor_r_COM_GPIO_Port, motor_r_COM_Pin , 0);
-  HAL_GPIO_WritePin(motor_z_COM_GPIO_Port, motor_z_COM_Pin, 0);
-
-  //Enable all motor
-  HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].enablePORT,stepperMotors[MOTOR_R_ID].enablePIN , 1);		//enable = HIGH
-  HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].enablePORT,stepperMotors[MOTOR_Z_ID].enablePIN , 1);		// enable = HIGH
-  HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].enablePORT,stepperMotors[MOTOR_FI_ID].enablePIN , 0);    // enable = GND
-
-
   while (1)
   {
-
-	  //R axis
-	  controlMotor_viaGPIO(
-			  motor_r_positive_button_GPIO_Port, motor_r_positive_button_Pin,
-			  motor_r_negative_button_GPIO_Port, motor_r_negative_button_Pin,
-			  stepperMotors, MOTOR_R_ID
-	  );
-
-	  //FI axis
-	  controlMotor_viaGPIO(
-			  motor_fi_positive_button_GPIO_Port, motor_fi_positive_button_Pin,
-			  motor_fi_negative_button_GPIO_Port, motor_fi_negative_button_Pin,
-			  stepperMotors, MOTOR_FI_ID
-	  );
-
-	  //Z axis
-	  controlMotor_viaGPIO(
-			  motor_z_positive_button_GPIO_Port, motor_z_positive_button_Pin,
-			  motor_z_negative_button_GPIO_Port, motor_z_negative_button_Pin,
-			  stepperMotors, MOTOR_Z_ID
-	 );
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -258,44 +287,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
-
 }
 
 /**
@@ -567,13 +558,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, motor_z_DIR_Pin|motor_z_ENA_Pin|motor_z_COM_Pin|motor_fi_DIR_Pin
@@ -584,6 +574,14 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOG, GreenLed_LD3_Pin|RedLed_LD4_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : limswitch_r_null_Pin limswitch_r_max_Pin limswich_fi_null_Pin limswitch_fi_max_Pin
+                           limswitch_z_null_Pin limswitch_z_max_Pin */
+  GPIO_InitStruct.Pin = limswitch_r_null_Pin|limswitch_r_max_Pin|limswich_fi_null_Pin|limswitch_fi_max_Pin
+                          |limswitch_z_null_Pin|limswitch_z_max_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : motor_z_DIR_Pin motor_z_ENA_Pin motor_z_COM_Pin motor_fi_DIR_Pin
                            motor_fi_ENA_Pin motor_fi_COM_Pin */
@@ -629,61 +627,441 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+/*
+ * In case of EXTI, one of the limit switches turn on. To prevent further movement, the axis' motor turns off
+ * and @variable current_position is updated.
+ */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	switch (GPIO_Pin){
+		case limswitch_z_null_Pin:{
+			if(HAL_GPIO_ReadPin(limswitch_z_null_GPIO_Port, limswitch_z_null_Pin)){
+				motorOFF(stepperMotors, MOTOR_Z_ID);
+				current_position.z = alltime_Zpos = 0;
+				stepperMotors[MOTOR_Z_ID].allowedDir = MOTORALLOW_POSDIR;
+			}
+			else{
+				stepperMotors[MOTOR_Z_ID].allowedDir = MOTORALLOW_BOTHDIR;
+			}
+			break;
+		}
+		case limswitch_z_max_Pin:{
+			if(HAL_GPIO_ReadPin(limswitch_z_max_GPIO_Port, limswitch_z_max_Pin)){
+				motorOFF(stepperMotors, MOTOR_Z_ID);
+				current_position.z = alltime_Zpos = MOTOR_Z_MAXPOS;
+				stepperMotors[MOTOR_Z_ID].allowedDir = MOTORALLOW_NEGDIR;
+			}
+			else{
+				stepperMotors[MOTOR_Z_ID].allowedDir = MOTORALLOW_BOTHDIR;
+			}
+			break;
+		}
+		case limswitch_r_null_Pin:{
+			if(HAL_GPIO_ReadPin(limswitch_r_null_GPIO_Port, limswitch_r_null_Pin)){
+				motorOFF(stepperMotors, MOTOR_R_ID);
+				current_position.r = alltime_Rpos = 0;
+				stepperMotors[MOTOR_R_ID].allowedDir = MOTORALLOW_POSDIR;
+			}
+			else{
+				stepperMotors[MOTOR_R_ID].allowedDir = MOTORALLOW_BOTHDIR;
+			}
+			break;
+		}
+		case limswitch_r_max_Pin:{
+			if(HAL_GPIO_ReadPin(limswitch_r_max_GPIO_Port, limswitch_r_max_Pin)){
+				motorOFF(stepperMotors, MOTOR_R_ID);
+				current_position.r = alltime_Rpos = MOTOR_R_MAXPOS;
+				stepperMotors[MOTOR_R_ID].allowedDir = MOTORALLOW_NEGDIR;
+			}
+			else{
+				stepperMotors[MOTOR_R_ID].allowedDir = MOTORALLOW_BOTHDIR;
+			}
+			break;
+		}
+		case limswich_fi_null_Pin:{
+			if(HAL_GPIO_ReadPin(limswich_fi_null_GPIO_Port, limswich_fi_null_Pin)){
+				motorOFF(stepperMotors, MOTOR_FI_ID);
+				current_position.fi =alltime_FIpos = 0;
+				stepperMotors[MOTOR_FI_ID].allowedDir = MOTORALLOW_POSDIR;
+			}
+			else{
+				stepperMotors[MOTOR_FI_ID].allowedDir = MOTORALLOW_BOTHDIR;
+			}
+			break;
+		}
+		case limswitch_fi_max_Pin:{
+			if(HAL_GPIO_ReadPin(limswitch_fi_max_GPIO_Port, limswitch_fi_max_Pin)){
+				motorOFF(stepperMotors, MOTOR_FI_ID);
+				current_position.fi = alltime_FIpos = MOTOR_FI_MAXPOS;
+				stepperMotors[MOTOR_FI_ID].allowedDir = MOTORALLOW_NEGDIR;
+			}
+			else{
+				stepperMotors[MOTOR_FI_ID].allowedDir = MOTORALLOW_BOTHDIR;
+			}
+			break;
+		}
+	}
+}
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_fc_indicator_blinking */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the indicator_blinking thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+/* USER CODE END Header_fc_indicator_blinking */
+void fc_indicator_blinking(void const * argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
   for(;;)
   {
-
+	  if(error_byte){
+		  HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, 1);
+		  osDelay(200);
+		  HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, 0);
+		  osDelay(200);
+	  }
+	  else{
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, 1);
+		  osDelay(1000);
+		  HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, 0);
+		  osDelay(1000);
+	  }
   }
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartRobotControlTask */
+/* USER CODE BEGIN Header_fc_control_viaGPIO */
 /**
-* @brief Function implementing the controlTask thread.
-* @param argument: Not used
+* @brief Function implementing the control_viaGPIOI thread.
+* @param argument: Array of motor structs
 * @retval None
 */
-/* USER CODE END Header_StartRobotControlTask */
-void StartRobotControlTask(void const * argument)
+/* USER CODE END Header_fc_control_viaGPIO */
+void fc_control_viaGPIO(void const * argument)
 {
-  /* USER CODE BEGIN StartRobotControlTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartRobotControlTask */
+  /* USER CODE BEGIN fc_control_viaGPIO */
+	//MOTOR INIT ------------------------------------------------------------------//
+	StepperMotor* stepperMotors = (StepperMotor*)argument;
+	stepperMotors[MOTOR_FI_ID] = (StepperMotor) {
+			.ID = MOTOR_FI_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
+			.motorState = MOTORSTATE_STOPPED,
+
+			.TIM_CH = TIM_CHANNEL_2,	//PE11
+			.TIM = &htim1,
+
+			.enablePORT = motor_fi_ENA_GPIO_Port,  //PC11
+			.enablePIN = motor_fi_ENA_Pin,
+
+			.dirPORT = motor_fi_DIR_GPIO_Port,	//PC8
+			.dirPIN = motor_fi_DIR_Pin,
+	};
+	stepperMotors[MOTOR_Z_ID] = (StepperMotor) {
+			.ID = MOTOR_Z_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
+			.motorState = MOTORSTATE_STOPPED,
+
+			.TIM_CH = TIM_CHANNEL_1,	//PA0
+			.TIM = &htim2,
+
+			.enablePORT = motor_z_ENA_GPIO_Port,	//PC14
+			.enablePIN = motor_z_ENA_Pin,
+
+			.dirPORT = motor_z_DIR_GPIO_Port,	//PC13
+			.dirPIN = motor_z_DIR_Pin,
+	};
+	stepperMotors[MOTOR_R_ID] = (StepperMotor) {
+			.ID = MOTOR_R_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
+			.motorState = MOTORSTATE_STOPPED,
+
+			.TIM_CH = TIM_CHANNEL_1,	//PA6
+			.TIM = &htim3,
+
+			.enablePORT = motor_r_ENA_GPIO_Port,  //PE15
+			.enablePIN = motor_r_ENA_Pin,
+
+			.dirPORT = motor_r_DIR_GPIO_Port,		//PE12
+			.dirPIN = motor_r_DIR_Pin,
+	};
+
+	//Set the COM pins to GND
+	HAL_GPIO_WritePin(motor_fi_COM_GPIO_Port, motor_fi_COM_Pin, 0);
+	HAL_GPIO_WritePin(motor_r_COM_GPIO_Port, motor_r_COM_Pin , 0);
+	HAL_GPIO_WritePin(motor_z_COM_GPIO_Port, motor_z_COM_Pin, 0);
+
+	//Enable all motor
+	HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].enablePORT,stepperMotors[MOTOR_R_ID].enablePIN , 1);	//enable = HIGH
+	HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].enablePORT,stepperMotors[MOTOR_Z_ID].enablePIN , 1);	// enable = HIGH
+	HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].enablePORT,stepperMotors[MOTOR_FI_ID].enablePIN , 0);  // enable = GND
+
+
+	//HOMING ----------------------------------------------------------------------------//
+	if(!homing_state){
+		error_byte = startAllMotor(stepperMotors, MOTORDIR_NEGATIVE);
+		//Only run if the arm is not homed
+		if(!error_byte){
+			//waiting untill all of the motors has reached their limit
+			while((GPIO_PIN_SET != limit_switches[1]) || (GPIO_PIN_SET != limit_switches[3]) || (GPIO_PIN_SET != limit_switches[5])){
+
+				//FI axis check
+				if(GPIO_PIN_SET == limit_switches[1]){
+					motorOFF(stepperMotors, MOTOR_FI_ID);
+					current_position.fi = 0;
+					alltime_FIpos = 0;
+				}
+
+				//Z axis check
+				if(GPIO_PIN_SET == limit_switches[3]){
+					motorOFF(stepperMotors, MOTOR_Z_ID);
+					current_position.z = 0;
+					alltime_Zpos = 0;
+				}
+
+				//R axis check
+				if(GPIO_PIN_SET == limit_switches[5]){
+					motorOFF(stepperMotors, MOTOR_R_ID);
+					current_position.r = 0;
+					alltime_Rpos = 0;
+				}
+			}
+			homing_state = 1;
+		}
+		else {
+			//if there is a problem about the motors, dont do nothing stupid
+			//for(;;){}
+		}
+	}
+
+
+	//START CONTROL TASK -----------------------------------------------------------------------//
+	/* Infinite contol loop */
+	for(;;)
+	{
+		//R axis
+		controlMotor_viaGPIO(
+			motor_r_positive_button_GPIO_Port, motor_r_positive_button_Pin,
+			motor_r_negative_button_GPIO_Port, motor_r_negative_button_Pin,
+			stepperMotors, MOTOR_R_ID
+		);
+
+		//FI axis
+		controlMotor_viaGPIO(
+			motor_fi_positive_button_GPIO_Port, motor_fi_positive_button_Pin,
+			motor_fi_negative_button_GPIO_Port, motor_fi_negative_button_Pin,
+			stepperMotors, MOTOR_FI_ID
+		);
+
+		//Z axis
+		controlMotor_viaGPIO(
+			motor_z_positive_button_GPIO_Port, motor_z_positive_button_Pin,
+			motor_z_negative_button_GPIO_Port, motor_z_negative_button_Pin,
+			stepperMotors, MOTOR_Z_ID
+		);
+	}
+  /* USER CODE END fc_control_viaGPIO */
 }
 
-/* USER CODE BEGIN Header_StartCommunicationTask */
+/* USER CODE BEGIN Header_fc_control_viaWIFI */
 /**
-* @brief Function implementing the commTask thread.
+* @brief Function implementing the control_viaWIFI thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartCommunicationTask */
-void StartCommunicationTask(void const * argument)
+/* USER CODE END Header_fc_control_viaWIFI */
+void fc_control_viaWIFI(void const * argument)
 {
-  /* USER CODE BEGIN StartCommunicationTask */
+  /* USER CODE BEGIN fc_control_viaWIFI */
+	//MOTOR INIT ------------------------------------------------------------------//
+	StepperMotor* stepperMotors = (StepperMotor*)argument;
+	stepperMotors[MOTOR_FI_ID] = (StepperMotor) {
+			.ID = MOTOR_FI_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
+			.motorState = MOTORSTATE_STOPPED,
+
+			.TIM_CH = TIM_CHANNEL_2,	//PE11
+			.TIM = &htim1,
+
+			.enablePORT = motor_fi_ENA_GPIO_Port,  //PC11
+			.enablePIN = motor_fi_ENA_Pin,
+
+			.dirPORT = motor_fi_DIR_GPIO_Port,	//PC8
+			.dirPIN = motor_fi_DIR_Pin,
+	};
+	stepperMotors[MOTOR_Z_ID] = (StepperMotor) {
+			.ID = MOTOR_Z_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
+			.motorState = MOTORSTATE_STOPPED,
+
+			.TIM_CH = TIM_CHANNEL_1,	//PA0
+			.TIM = &htim2,
+
+			.enablePORT = motor_z_ENA_GPIO_Port,	//PC14
+			.enablePIN = motor_z_ENA_Pin,
+
+			.dirPORT = motor_z_DIR_GPIO_Port,	//PC13
+			.dirPIN = motor_z_DIR_Pin,
+	};
+	stepperMotors[MOTOR_R_ID] = (StepperMotor) {
+			.ID = MOTOR_R_ID,
+			.allowedDir = MOTORALLOW_BOTHDIR,
+			.motorState = MOTORSTATE_STOPPED,
+
+			.TIM_CH = TIM_CHANNEL_1,	//PA6
+			.TIM = &htim3,
+
+			.enablePORT = motor_r_ENA_GPIO_Port,  //PE15
+			.enablePIN = motor_r_ENA_Pin,
+
+			.dirPORT = motor_r_DIR_GPIO_Port,		//PE12
+			.dirPIN = motor_r_DIR_Pin,
+	};
+
+	//Set the COM pins to GND
+	HAL_GPIO_WritePin(motor_fi_COM_GPIO_Port, motor_fi_COM_Pin, 0);
+	HAL_GPIO_WritePin(motor_r_COM_GPIO_Port, motor_r_COM_Pin , 0);
+	HAL_GPIO_WritePin(motor_z_COM_GPIO_Port, motor_z_COM_Pin, 0);
+
+	//Enable all motor
+	HAL_GPIO_WritePin(stepperMotors[MOTOR_R_ID].enablePORT,stepperMotors[MOTOR_R_ID].enablePIN , 1);	//enable = HIGH
+	HAL_GPIO_WritePin(stepperMotors[MOTOR_Z_ID].enablePORT,stepperMotors[MOTOR_Z_ID].enablePIN , 1);	// enable = HIGH
+	HAL_GPIO_WritePin(stepperMotors[MOTOR_FI_ID].enablePORT,stepperMotors[MOTOR_FI_ID].enablePIN , 0);  // enable = GND
+
+
+	//HOMING ----------------------------------------------------------------------------//
+	if(!homing_state){
+		error_byte = startAllMotor(stepperMotors, MOTORDIR_NEGATIVE);
+		//Only run if the arm is not homed
+		if(!error_byte){
+			//waiting untill all of the motors has reached their limit
+			while((GPIO_PIN_SET != limit_switches[1]) || (GPIO_PIN_SET != limit_switches[3]) || (GPIO_PIN_SET != limit_switches[5])){
+
+				//FI axis check
+				if(GPIO_PIN_SET == limit_switches[1]){
+					motorOFF(stepperMotors, MOTOR_FI_ID);
+					current_position.fi = 0;
+					alltime_FIpos = 0;
+				}
+
+				//Z axis check
+				if(GPIO_PIN_SET == limit_switches[3]){
+					motorOFF(stepperMotors, MOTOR_Z_ID);
+					current_position.z = 0;
+					alltime_Zpos = 0;
+				}
+
+				//R axis check
+				if(GPIO_PIN_SET == limit_switches[5]){
+					motorOFF(stepperMotors, MOTOR_R_ID);
+					current_position.r = 0;
+					alltime_Rpos = 0;
+				}
+			}
+			homing_state = 1;
+		}
+		else {
+			//if there is a problem about the motors, dont do nothing stupid
+			for(;;){}
+		}
+	}
+
+
+	//START CONTROL TASK ----------------------------------------------------------------//
+	RequestType incoming_instruction;
+	MovementCommands command;
+	uint32_t Z_tempPos = 0, R_tempPos = 0, FI_tempPos = 0;
+	uint8_t rdy = 1;
+
+	/* Infinite controll loop */
+	while(1)
+	{
+		if(rdy && xQueueReceive(WifiCommandsHandle, &incoming_instruction, 0)){
+			command = translate_incomingInstruction(incoming_instruction);
+
+			switch(command){
+					case Z_UP: {
+							Z_tempPos = alltime_Zpos;
+							startMotor(stepperMotors, MOTOR_Z_ID, MOTORDIR_POSITIVE);
+							rdy = 0;
+							break;
+					}
+					case Z_DOWN:{
+							Z_tempPos = alltime_Zpos;
+							startMotor(stepperMotors, MOTOR_Z_ID, MOTORDIR_NEGATIVE);
+							rdy = 0;
+							break;
+					}
+					case R_FORWARD:{
+							R_tempPos = alltime_Rpos;
+							startMotor(stepperMotors, MOTOR_R_ID, MOTORDIR_POSITIVE);
+							rdy = 0;
+							break;
+					}
+					case R_BACKWARD:{
+							R_tempPos = alltime_Rpos;
+							startMotor(stepperMotors, MOTOR_R_ID, MOTORDIR_NEGATIVE);
+							rdy = 0;
+							break;
+					}
+					case FI_COUNTERCLOCKWISE:{
+							FI_tempPos = alltime_FIpos;
+							startMotor(stepperMotors, MOTOR_FI_ID, MOTORDIR_POSITIVE);
+							rdy = 0;
+							break;
+					}
+					case FI_CLOCKWISE:{
+							FI_tempPos = alltime_FIpos;
+							startMotor(stepperMotors, MOTOR_FI_ID, MOTORDIR_NEGATIVE);
+							rdy = 0;
+							break;
+					}
+					default: {}
+			}
+		}
+
+		if(!rdy && ((alltime_Zpos < (Z_tempPos - MOTOR_Z_MICROSTEP)) || (alltime_Zpos > (Z_tempPos + MOTOR_Z_MICROSTEP)))){
+			motorOFF(stepperMotors, MOTOR_Z_ID);
+			rdy = 1;
+		}
+
+		if(!rdy && ((alltime_Rpos < (R_tempPos - MOTOR_R_MICROSTEP)) || (alltime_Rpos > (R_tempPos + MOTOR_R_MICROSTEP)))){
+			motorOFF(stepperMotors, MOTOR_R_ID);
+			rdy = 1;
+		}
+
+		if(!rdy && ((alltime_FIpos < (FI_tempPos - MOTOR_FI_MICROSTEP)) || (alltime_FIpos > (FI_tempPos + MOTOR_FI_MICROSTEP)))){
+			motorOFF(stepperMotors, MOTOR_FI_ID);
+			rdy = 1;
+		}
+	}
+  /* USER CODE END fc_control_viaWIFI */
+}
+
+/* USER CODE BEGIN Header_fc_updateLimSwitch */
+/**
+* @brief Function implementing the updateLimSwitch thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_fc_updateLimSwitch */
+void fc_updateLimSwitch(void const * argument)
+{
+  /* USER CODE BEGIN fc_updateLimSwitch */
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	/*
+    limit_switches[1] = HAL_GPIO_ReadPin(motor_z_negative_button_GPIO_Port, motor_z_negative_button_Pin);
+    limit_switches[2] = HAL_GPIO_ReadPin(motor_z_positive_button_GPIO_Port, motor_z_positive_button_Pin);
+    limit_switches[3] = HAL_GPIO_ReadPin(motor_r_negative_button_GPIO_Port, motor_r_negative_button_Pin);
+    limit_switches[4] = HAL_GPIO_ReadPin(motor_r_positive_button_GPIO_Port, motor_r_positive_button_Pin);
+    limit_switches[5] = HAL_GPIO_ReadPin(motor_fi_negative_button_GPIO_Port, motor_fi_negative_button_Pin);
+    limit_switches[6] = HAL_GPIO_ReadPin(motor_fi_positive_button_GPIO_Port, motor_fi_positive_button_Pin);
+    */
   }
-  /* USER CODE END StartCommunicationTask */
+  /* USER CODE END fc_updateLimSwitch */
 }
 
 /**
@@ -704,13 +1082,28 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
   if(htim->Instance == TIM1) {
-	  posFiValue++;
+	  if(MOTORDIR_NEGATIVE == stepperMotors[MOTOR_FI_ID].dir){
+		  alltime_FIpos--;
+	  }
+	  else if(MOTORDIR_POSITIVE == stepperMotors[MOTOR_FI_ID].dir){
+		  alltime_FIpos++;
+	  }
   }
   if(htim->Instance == TIM2) {
-	  posZValue++;
+	  if(MOTORDIR_NEGATIVE == stepperMotors[MOTOR_FI_ID].dir){
+		  alltime_Zpos--;
+	  }
+	  else if(MOTORDIR_POSITIVE == stepperMotors[MOTOR_FI_ID].dir){
+		  alltime_Zpos++;
+	  }
   }
   if(htim->Instance == TIM3) {
-	  posRValue++;
+	  if(MOTORDIR_NEGATIVE == stepperMotors[MOTOR_FI_ID].dir){
+		  alltime_Rpos--;
+	  }
+	  else if(MOTORDIR_POSITIVE == stepperMotors[MOTOR_FI_ID].dir){
+		  alltime_Rpos++;
+	  }
   }
   /* USER CODE END Callback 1 */
 }
