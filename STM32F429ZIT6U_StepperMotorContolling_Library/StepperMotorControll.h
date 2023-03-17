@@ -50,11 +50,17 @@
 
 
 /*
- *
+ * The length of the axis measured in steps of the stepper motor
  */
-#define MOTOR_FI_MAXPOS 	(uint32_t)7500u
-#define MOTOR_Z_MAXPOS 		(uint32_t)6500u
-#define MOTOR_R_MAXPOS 		(uint32_t)600u
+#define MOTOR_FI_MAXPOS 	(uint32_t)13874
+#define MOTOR_Z_MAXPOS 		(uint32_t)49231
+#define MOTOR_R_MAXPOS 		(uint32_t)1048
+
+
+/*
+ * When the arm is controlled via wifi, a command from the web means a certain displacement on the specified axis.
+ * The length of the movement defined by these macros.
+ */
 #define MOTOR_FI_MICROSTEP 	(uint32_t)375u
 #define MOTOR_Z_MICROSTEP	(uint32_t)325u
 #define MOTOR_R_MICROSTEP 	(uint32_t)30u
@@ -65,40 +71,16 @@
  * The source of these could be a remote controller, a webpage or anything.
  */
 typedef enum {
-	X_INVALID = 0,
-
-	Z_STOP = 1,
-	Z_UP = 2,
-	Z_DOWN = 3,
-
-	R_STOP = 4,
-	R_FORWARD =5,
-	R_BACKWARD = 6,
-
-	FI_STOP = 7,
-	FI_COUNTERCLOCKWISE = 8,
-	FI_CLOCKWISE = 9,
-
-	X_HOMING = 10,
-	X_CHANGE_COORDINATES = 11
+	INVALID = 0,
+	Z_UP = 1,
+	Z_DOWN = 2,
+	R_FORWARD = 3,
+	R_BACKWARD = 4,
+	FI_COUNTERCLOCKWISE = 5,
+	FI_CLOCKWISE = 6,
+	HOMING = 7,
+	CHANGE_COORDINATES = 8
 } MovementCommands;
-
-
-/*
- * Type for the requests that the WiFi module can send to the controller.
- */
-typedef enum
-{
-    INVALID, 			/**< INVALID Invalid request*/
-    AXIS_A_PLUS, 		/**< AXIS_A_PLUS Move the robot in the positive direction of the A axis */
-    AXIS_A_MINUS, 		/**< AXIS_A_MINUS Move the robot in the negative direction of the A axis */
-    AXIS_B_PLUS, 		/**< AXIS_B_PLUS Move the robot in the positive direction of the B axis */
-    AXIS_B_MINUS, 		/**< AXIS_B_MINUS Move the robot in the negative direction of the B axis */
-    AXIS_C_PLUS, 		/**< AXIS_C_PLUS Move the robot in the positive direction of the C axis */
-    AXIS_C_MINUS, 		/**< AXIS_C_MINUS Move the robot in the negative direction of the C axis */
-    HOMING, 			/**< HOMING Begin homing sequence */
-    CHANGE_COORDINATES, /**< CHANGE_COORDINATES Change the coordinate system of the robot arm */
-}RequestType;
 
 
 /*
@@ -186,24 +168,18 @@ uint8_t startAllMotor(StepperMotor *stepperMotors, uint8_t direction);
 /*
  * Stops timer PWM and sets the state of the motor to stopped.
  */
-void motorOFF(StepperMotor *stepperMotors, uint8_t motor_id);
+void stopMotor(StepperMotor *stepperMotors, uint8_t motor_id);
 
 /*
  * It brings the three motors to a stop.
  * Check out: motorOFF() function.
  */
-void allMotorOFF(StepperMotor *stepperMotors);
-
-/*
- * The WIFI module use a different enum declaration for it's commands then me.
- * Thats why I need to "translate" them.
- */
-MovementCommands translate_incomingInstruction(RequestType incoming_instruction);
+void stopAllMotor(StepperMotor *stepperMotors);
 
 /*
  * Controls a motor with two GPIO pin.
  * One pin drives the motor to positive direction, the other drives it to the opposite direction.
  */
-uint8_t controlMotor_viaGPIO (GPIO_TypeDef* pos_button_port, uint16_t pos_button_pin, GPIO_TypeDef* neg_button_port, uint16_t neg_button_pin, StepperMotor *stepperMotors, uint8_t motor_id);
+uint8_t controlMotor_viaGPIO (GPIO_PinState* limit_switches, GPIO_TypeDef* pos_button_port, uint16_t pos_button_pin, GPIO_TypeDef* neg_button_port, uint16_t neg_button_pin, StepperMotor *stepperMotors, uint8_t motor_id);
 
 

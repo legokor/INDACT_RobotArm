@@ -14,6 +14,12 @@
 /** Functions ----------------------------------------------------------------*/
 /*
  * Set manually the direction of a motor.
+ * INPUTS:
+ * @param (StepperMotor*) stepperMotors: pointer to array, that contains the motor's structs
+ * @param (uint8_t) motor_id: ID of the motor, that you want to manipulate : MOTOR_R/FI/Z_ID
+ * @param (uint8_t) direction: the direction define you want to set : MOTORDIR_POSITIVE/NEGATIVE/UNDEFINED
+ *
+ * OU
  * If allowedDir prohibits a direction, output value will be 1 and dir wont be overwritten.
  * OK: retval = 0; ERROR: retval = 1;
  */
@@ -98,20 +104,20 @@ uint8_t setAllMotorDirTowardsDesiredPos(StepperMotor *stepperMotors, ToolPositio
 {
 	uint8_t return_value;
 
-	int8_t differences[3];
-	differences[0] = (int8_t)(next_pos.fi - curr_pos.fi);
-	differences[1] = (int8_t)(next_pos.z - curr_pos.z);
-	differences[2] = (int8_t)(next_pos.r - curr_pos.r);
+	int32_t differences[3];
+	differences[0] = (int32_t)(next_pos.fi - curr_pos.fi);
+	differences[1] = (int32_t)(next_pos.z - curr_pos.z);
+	differences[2] = (int32_t)(next_pos.r - curr_pos.r);
 
 	for(uint8_t idx = 0; idx < 3; idx++){
 		if(0 == differences[idx]){
 			return_value = setMotorDir(stepperMotors, idx, MOTORDIR_UNDEFINED);
 		}
 		else if(0 > differences[idx]){
-			return_value = setMotorDir(stepperMotors, idx, MOTORDIR_POSITIVE);
+			return_value = setMotorDir(stepperMotors, idx, MOTORDIR_NEGATIVE);
 		}
 		else{
-			return_value = setMotorDir(stepperMotors, idx, MOTORDIR_NEGATIVE);
+			return_value = setMotorDir(stepperMotors, idx, MOTORDIR_POSITIVE);
 		}
 
 		return_value = return_value << 1;
@@ -175,18 +181,17 @@ uint8_t startMotor(StepperMotor *stepperMotors, uint8_t motor_id, uint8_t direct
  * For example the return value b0000 1010 means, that an error happened while setting FI and R axis' direction.
  */
 uint8_t startAllMotor(StepperMotor *stepperMotors, uint8_t direction){
-	uint8_t return_value, setdir_error;
+	uint8_t return_value, start_error;
 
 	for(uint8_t idx = 0; idx < NUMBER_OF_MOTORS; idx++){
-		setdir_error = setMotorDir(stepperMotors, idx, direction);
-		setdir_error = setdir_error << 1;
+		start_error = startMotor(stepperMotors, idx, direction);
+		start_error = start_error << 1;
 	}
 
-	if(setdir_error){
-		return_value = setdir_error;
+	if(start_error){
+		return_value = start_error;
 	}
 	else{
-		allMotorON(stepperMotors);
 		return_value = 0;
 	}
 
@@ -197,7 +202,7 @@ uint8_t startAllMotor(StepperMotor *stepperMotors, uint8_t direction){
 /*
  * Stops timer PWM and sets the state of the motor to stopped.
  */
-void motorOFF(StepperMotor *stepperMotors, uint8_t motor_id)
+void stopMotor(StepperMotor *stepperMotors, uint8_t motor_id)
 {
 	HAL_TIM_PWM_Stop_IT(stepperMotors[motor_id].TIM, stepperMotors[motor_id].TIM_CH);
 	stepperMotors[motor_id].motorState = MOTORSTATE_STOPPED;
@@ -209,61 +214,12 @@ void motorOFF(StepperMotor *stepperMotors, uint8_t motor_id)
  * It brings the three motors to a stop.
  * Check out: stopMotor() function.
  */
-void allMotorOFF(StepperMotor *stepperMotors)
+void stopAllMotor(StepperMotor *stepperMotors)
 {
 	for (uint8_t idx = 0; idx < NUMBER_OF_MOTORS; idx++)
 		if(MOTORSTATE_RUNNING == stepperMotors[idx].motorState)
-			motorOFF(stepperMotors, idx);
+			stopMotor(stepperMotors, idx);
 	return;
-}
-
-
-/*
- * The WIFI module use a different enum declaration for it's commands then me.
- * Thats why I need to "translate" them.
- */
-MovementCommands translate_incomingInstruction(RequestType incoming_instruction){
-	MovementCommands return_value;
-
-	switch (incoming_instruction){
-		case INVALID: {
-			return_value = X_INVALID;
-			break;
-		}
-		case AXIS_A_PLUS: {
-			return_value = Z_UP;
-			break;
-		}
-		case AXIS_A_MINUS: {
-			return_value = Z_DOWN;
-			break;
-		}
-		case AXIS_B_PLUS: {
-			return_value = R_FORWARD;
-			break;
-		}
-		case AXIS_B_MINUS: {
-			return_value = R_BACKWARD;
-			break;
-		}
-		case AXIS_C_PLUS: {
-			return_value = FI_COUNTERCLOCKWISE;
-			break;
-		}
-		case AXIS_C_MINUS: {
-			return_value = FI_CLOCKWISE;
-			break;
-		}
-		case HOMING: {
-			return_value = X_HOMING;
-			break;
-		}
-		case CHANGE_COORDINATES: {
-			return_value = X_CHANGE_COORDINATES;
-			break;
-		}
-	}
-	return return_value;
 }
 
 
@@ -271,7 +227,7 @@ MovementCommands translate_incomingInstruction(RequestType incoming_instruction)
  * Controls a motor with two GPIO pin.
  * One pin drives the motor to positive direction, the other drives it to the opposite direction.
  */
-uint8_t controlMotor_viaGPIO (GPIO_TypeDef* pos_button_port, uint16_t pos_button_pin, GPIO_TypeDef* neg_button_port, uint16_t neg_button_pin, StepperMotor *stepperMotors, uint8_t motor_id)
+uint8_t controlMotor_viaGPIO (GPIO_PinState* limit_switches, GPIO_TypeDef* pos_button_port, uint16_t pos_button_pin, GPIO_TypeDef* neg_button_port, uint16_t neg_button_pin, StepperMotor *stepperMotors, uint8_t motor_id)
 {
 	//stopped: return_value == 0, started: return_value == 1
 	uint8_t return_value;
@@ -280,19 +236,31 @@ uint8_t controlMotor_viaGPIO (GPIO_TypeDef* pos_button_port, uint16_t pos_button
 	GPIO_PinState neg_button = HAL_GPIO_ReadPin(neg_button_port, neg_button_pin);
 
 	if(pos_button && neg_button){
-	  motorOFF(stepperMotors, motor_id);
+	  stopMotor(stepperMotors, motor_id);
 	  return_value = 0;
 	}
 	else if(pos_button){
-	  startMotor(stepperMotors, motor_id, MOTORDIR_POSITIVE);
-	  return_value = 1;
+		if(!limit_switches[((motor_id+1)*2)-1]){
+			startMotor(stepperMotors, motor_id, MOTORDIR_POSITIVE);
+			return_value = 1;
+		}
+		else{
+			stopMotor(stepperMotors, motor_id);
+			return_value = 0;
+		}
 	}
-	else if(neg_button) {
-	  startMotor(stepperMotors, motor_id, MOTORDIR_NEGATIVE);
-	  return_value = 1;
+	else if(neg_button){
+		if(!limit_switches[(motor_id+1)*2]){
+			startMotor(stepperMotors, motor_id, MOTORDIR_NEGATIVE);
+			return_value = 1;
+		}
+		else{
+			stopMotor(stepperMotors, motor_id);
+			return_value = 0;
+		}
 	}
 	else {
-	  motorOFF(stepperMotors, motor_id);
+	  stopMotor(stepperMotors, motor_id);
 	  return_value = 0;
 	}
 	return return_value;
