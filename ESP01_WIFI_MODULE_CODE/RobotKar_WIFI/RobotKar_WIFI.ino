@@ -33,7 +33,11 @@
  * @brief Number of the GPIO pin that is being used by this program to give
  *        visual feedback to the user by turning on and off an external LED.
  */
-#define EXT_LED 1
+#define EXT_LED 2
+/** @brief LED on level */
+#define LED_ON LOW
+/** @brief LED off level */
+#define LED_OFF HIGH
 
 // ////////////////////////////////////////////////////////////////////////////
 // Using statements
@@ -95,7 +99,7 @@ WiFiServer server(80);
 void setup()
 {
     pinMode(EXT_LED, OUTPUT);
-    digitalWrite(EXT_LED, LOW);
+    digitalWrite(EXT_LED, LED_OFF);
 
     Serial.begin(115200);
 
@@ -221,16 +225,16 @@ void connectToNetwork(void)
     while ((WiFi.status() != WL_CONNECTED) && (millis() - start_time) <= CONNECT_TIMEOUT_MS)
     {
         delay(250);
-        digitalWrite(EXT_LED, HIGH);
+        digitalWrite(EXT_LED, LED_ON);
         delay(250);
-        digitalWrite(EXT_LED, LOW);
+        digitalWrite(EXT_LED, LED_OFF);
     }
 
     if (WiFi.status() == WL_CONNECTED)
     {
         Serial.print(F("IP "));
         Serial.println(WiFi.localIP());
-        digitalWrite(EXT_LED, HIGH);
+        digitalWrite(EXT_LED, LED_ON);
     }
     else
     {
@@ -253,7 +257,7 @@ void setupAccessPoint(void)
     {
         Serial.print(F("IP "));
         Serial.println(WiFi.softAPIP());
-        digitalWrite(EXT_LED, HIGH);
+        digitalWrite(EXT_LED, LED_ON);
     }
     else
     {
@@ -306,7 +310,7 @@ void interpretCommand(const char *message)
         }
         else if (strcmp_P(command, PSTR(STR_SYNCHRONIZE)) == 0)
         {
-            const char *str_sync_code = STR_SYNC_CODE;
+            const char str_sync_code[] = STR_SYNC_CODE;
             for (int i = 0; i < SYNC_NUMBER; i++)
             {
                 Serial.println(str_sync_code);
