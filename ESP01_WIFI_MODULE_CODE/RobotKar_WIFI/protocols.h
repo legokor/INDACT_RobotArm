@@ -13,6 +13,10 @@
 #ifndef PROTOCOLS_H_
 #define PROTOCOLS_H_
 
+// Markers should not to be changed!
+#define MESSAGE_BEGIN_MARKER "+_"
+#define MESSAGE_END_MARKER "\r\n"
+
 /**
  * @brief The sizes of the different strings that the controller can send to
  *        the WiFi module.
@@ -48,20 +52,16 @@
 #define STR_POSITION "PO"
 /**@}*/
 
-/**@{*/
 /**
- * @brief The sizes of the responses and requests that the WiFi module can send
- *        to the controller.
+ * @brief The size of the requests that the WiFi module can send to the controller.
  */
-#define MODULE_RESPONSE_SIZE 2
 #define MODULE_REQUEST_SIZE 2
-/**@}*/
 
 /**@{*/
 /**
  * @brief Response messages from the WiFi module to the controller.
  */
-#define STR_SYNC_CODE { 0xFF, 0xFF, '\0' }
+#define STR_SYNC_CODE "@@"
 #define STR_CONFIRM "OK"
 #define STR_FAIL "FA"
 #define STR_IP "IP"

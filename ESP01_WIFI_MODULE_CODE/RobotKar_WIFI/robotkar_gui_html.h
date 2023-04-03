@@ -120,7 +120,7 @@ static const char gui_main_page[] PROGMEM = "\
                         document.getElementById('position').innerHTML = 'Poz&iacute;ci&oacute;: ' + data.position;\r\n\
                     }\r\n\
                 } else {\r\n\
-                    There has been an error with the request!\r\n\
+                    // There has been an error with the request!\r\n\
                     console.log('Something went wrong! Received status: ' + status);\r\n\
                 }\r\n\
             };\r\n\
@@ -148,7 +148,7 @@ static const char gui_main_page[] PROGMEM = "\
                             // The request has been completed successfully\r\n\
                             console.log('Data sent and response loaded.');\r\n\
                         } else {\r\n\
-                            // Oh no! There has been an error with the request!\r\n\
+                            // There has been an error with the request!\r\n\
                             console.log('Something went wrong! Received status: ' + status);\r\n\
                         }\r\n\
                     };\r\n\

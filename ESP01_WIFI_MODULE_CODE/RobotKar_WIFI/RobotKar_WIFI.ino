@@ -49,6 +49,9 @@ using namespace std;
 // Typedef-s, global constants and variables
 // ////////////////////////////////////////////////////////////////////////////
 
+const char msgBeginMarker[] = MESSAGE_BEGIN_MARKER;
+const char msgEndMarker[] = MESSAGE_END_MARKER;
+
 /** @brief Buffer for the incoming messages. */
 char msg_buffer[MESSAGE_MAX_SIZE + 2] = {0};
 /** @brief Size of the message buffer. */
@@ -191,7 +194,7 @@ void handle_clients(void)
         // Send the request to the controller
         char message[MODULE_REQUEST_SIZE + 1];
         requestToMessage(req_type, message);
-        Serial.println(message);
+        sendMessage(message);
         break;
     }
 }
@@ -232,8 +235,10 @@ void connectToNetwork(void)
 
     if (WiFi.status() == WL_CONNECTED)
     {
-        Serial.print(F("IP "));
-        Serial.println(WiFi.localIP());
+        String message;
+        message += F("IP ");
+        message += WiFi.localIP().toString();
+        sendMessage(message.c_str());
         digitalWrite(EXT_LED, LED_ON);
     }
     else
@@ -255,8 +260,10 @@ void setupAccessPoint(void)
     if (WiFi.softAP((ssid[0] == 0) ? DEF_AP_SSID : ssid,
                     (password[0] == 0) ? NULL : password))
     {
-        Serial.print(F("IP "));
-        Serial.println(WiFi.softAPIP());
+        String message;
+        message += F("IP ");
+        message += WiFi.softAPIP().toString();
+        sendMessage(message.c_str());
         digitalWrite(EXT_LED, LED_ON);
     }
     else
@@ -310,10 +317,9 @@ void interpretCommand(const char *message)
         }
         else if (strcmp_P(command, PSTR(STR_SYNCHRONIZE)) == 0)
         {
-            const char str_sync_code[] = STR_SYNC_CODE;
             for (int i = 0; i < SYNC_NUMBER; i++)
             {
-                Serial.println(str_sync_code);
+                sendMessage(STR_SYNC_CODE);
             }
         }
         else if (strcmp_P(command, PSTR(STR_CONNECT_STATION)) == 0)
@@ -408,32 +414,54 @@ void interpretCommand(const char *message)
  * @return True if the terminating character arrived or the buffer got full,
  *        else false
  */
-bool receiveMessage(char *buffer, uint32_t size)
+bool receiveMessage(char *buffer, size_t size)
 {
-    const char *endMarker = "\r\n";
-    static uint32_t idx = 0;
+    static char temp[2] = {0};
+    static bool msg_started = false;
+    static size_t idx = 0;
 
     while (Serial.available() > 0)
     {
-        buffer[idx] = Serial.read();
+        temp[1] = temp[0];
+        temp[0] = Serial.read();
 
-        if ((idx > 0) && (buffer[idx - 1] == endMarker[0]) && (buffer[idx] == endMarker[1]))
+        if ((temp[1] == msgBeginMarker[0]) && (temp[0] == msgBeginMarker[1]))
         {
-            buffer[idx - 1] = '\0';
             idx = 0;
-            return true;
+            msg_started = true;
         }
-
-        idx++;
-        if (idx >= size)
+        else if (msg_started == true)
         {
-            buffer[size - 1] = '\0';
-            idx = 0;
-            return true;
+            if ((temp[1] == msgEndMarker[0]) && (temp[0] == msgEndMarker[1]))
+            {
+                buffer[idx - 1] = '\0';
+                idx = 0;
+                msg_started = false;
+
+                return true;
+            }
+            else
+            {
+                buffer[idx] = temp[0];
+                idx++;
+
+                if (idx >= size)
+                {
+                    idx = 0;
+                    msg_started = false;
+                }
+            }
         }
     }
 
     return false;
+}
+
+void sendMessage(const char* msg)
+{
+    Serial.print(msgBeginMarker);
+    Serial.print(msg);
+    Serial.print(msgEndMarker);
 }
 
 /**
@@ -441,7 +469,7 @@ bool receiveMessage(char *buffer, uint32_t size)
  */
 inline void sendConfirm(void)
 {
-    Serial.println(F(STR_CONFIRM));
+    sendMessage(STR_CONFIRM);
 }
 
 /**
@@ -449,5 +477,5 @@ inline void sendConfirm(void)
  */
 inline void sendFail(void)
 {
-    Serial.println(F(STR_FAIL));
+    sendMessage(STR_FAIL);
 }
