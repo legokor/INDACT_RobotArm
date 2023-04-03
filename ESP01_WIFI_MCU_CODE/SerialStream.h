@@ -1,78 +1,66 @@
 /**
- *******************************************************************************
+ ***************************************************************************************************
  * @file SerialStream.h
  *
- * @date Feb 7, 2023
- * @author Varga  Péter
- *******************************************************************************
- * @brief Declaration of a class that handles serial communication through UART.
- *
- *******************************************************************************
+ * @date 2023. 02. 07.
+ * @author Péter Varga
+ ***************************************************************************************************
+ * @brief This file provides a simple interface for the serial communication between this controller
+ *          and the WiFi module.
+ ***************************************************************************************************
  */
 
 #ifndef SERIALSTREAM_H_
 #define SERIALSTREAM_H_
 
-#include <stdexcept>
 #include "usart.h"
 
-/* FreeRTOS includes. */
-#include "FreeRTOS.h"
-#include "stream_buffer.h"
+// I want to use the stm32l4xx_hal_uart.h file (include below) but the compiler does not compile the
+// project if I include it. Including this file would make the inclusion of usart.h unnecessary.
+// #include "stm32l4xx_hal_uart.h"
 
-namespace ESP01
-{
+// /////////////////////////////////////////////////////////////////////////////////////////////////
+// Function declarations
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * @brief Class to handle the data transmission and reception on a serial communication channel.
+ * @brief Initialize the serial stream.
+ * @param huart Handle of the UART peripherial that the serial stream uses
+ * @param buffer_size Size of the serial stream reception buffer in bytes
+ * @param msg_max_size Maximum size of a message in bytes
  */
-class SerialStream
-{
-public:
-    /** Poninter of the handle of the UART. */
-    UART_HandleTypeDef *const huart;
+void SerialStream_InitSerialStream(UART_HandleTypeDef *huart, size_t rx_buffer_size, size_t msg_max_size);
 
-private:
-    StreamBufferHandle_t rxBuffer;
+/**
+ * @brief Delete the serial stream.
+ */
+void SerialStream_DeleteSerialStream(void);
 
-    const size_t rxBufferSize;
-    const size_t rxTriggerLevel = sizeof(char);
+/**
+ * @brief Send a string of characters in a message frame.
+ * @param msg String to be sent
+ * @return 1 if the message was sent successfuly, 0 otherwise
+ */
+uint8_t SerialStream_SendMessage(const char *msg);
 
-    const char *msgEndMarker = "\r\n";
+/**
+ * @brief Receive a string of characters in a message frame.
+ * @param msg Buffer for the received characters
+ * @return 1 if a message was successfully received, 0 otherwise
+ */
+uint8_t SerialStream_ReceiveMessage(char *msg);
 
-public:
-    /**
-     * @brief Constructor.
-     * @param huart Poninter of the handle of the UART
-     * @param buffer_size Size of the serial buffer in bytes
-     */
-    SerialStream(UART_HandleTypeDef *huart, size_t buffer_size);
-    /** Destructor. */
-    virtual ~SerialStream();
+/**
+ * @brief Save a character to the serial buffer. This method has to be called from an interrupt
+ *          service function.
+ * @param ch Character to be saved
+ */
+void SerialStream_SaveCharFromISR(char ch);
 
-    /**
-     * @brief Send a string of characters terminated by \r\n through UART.
-     * @param msg String of characters to be sent
-     * @param size Number of characters to be sent
-     */
-    void sendMessage(const char *msg, size_t size);
-    /**
-     * @brief Receive a string of characters terminated by \r\n through UART.
-     * @param msg Buffer for the received characters
-     * @param msg_max_size Maximum number of the received characters, has to be at most the size of
-     *          the buffer - 1
-     * @return True if a message was successfully received otherwise false
-     */
-    bool receiveMessage(char *msg, size_t msg_max_size);
-
-    /**
-     * @brief Save a character to the serial buffer. This method has to be called from an interrupt
-     *          service function.
-     * @param ch Character to be saved
-     */
-    void sendCharFromISR(char ch);
-};
-
-} /* namespace ESP01 */
+/**
+ * @brief Get wether the serial stream buffer is ready or not.
+ * @return 1 if the stream buffer is ready, 0 otherwise
+ */
+uint8_t SerialStream_IsBufferReady(void);
 
 #endif /* SERIALSTREAM_H_ */
