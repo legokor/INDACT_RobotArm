@@ -1,0 +1,29 @@
+{
+    "title": "INDACT Robotkar",
+    "page_header": "INDACT Robotkar",
+    "control_table_header": "Vez&eacute;rl&eacute;s",
+    "text_field_top": [
+        "&Aacute;llapot: ...",
+        "Poz&iacute;ci&oacute;: ..."
+    ],
+    "text_field_bottom": [],
+    "control_table": [
+        {
+            "row_label": "r tengely",
+            "row_control": "<button data-btn='am'>-</button><button data-btn='ap'>+</button>"
+        },
+        {
+            "row_label": "&phi; tengely",
+            "row_control": "<button data-btn='bm'>-</button><button data-btn='bp'>+</button>"
+        },
+        {
+            "row_label": "z tengely",
+            "row_control": "<button data-btn='cm'>-</button><button data-btn='cp'>+</button>"
+        },
+        {
+            "row_label": "alaphelyzet",
+            "row_control": "<button data-btn='hx'>H</button>"
+        }
+    ],
+    "user_script": ""
+}

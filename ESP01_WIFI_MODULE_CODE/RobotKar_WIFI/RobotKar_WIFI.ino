@@ -1,113 +1,141 @@
 /**
- *******************************************************************************
+ ***************************************************************************************************
  * @file RobotKar_WIFI.ino
  *
  * @date Jan 20, 2023
  * @author Varga Peter
- *******************************************************************************
+ ***************************************************************************************************
  * @brief This program provides wireless controls for the robot arm.
  * @details
- *******************************************************************************
+ ***************************************************************************************************
  */
 
 #include <ESP8266WiFi.h>
 #include <string.h>
-#include <regex>
 
-#include "robotkar_gui_html.h"
-#include "control_codes.h"
+#include "board_configuration.h"
+
+#include "ControllerServer.h"
+#include "MessageHandler.h"
+#include "CommandHandler.h"
+
 #include "protocols.h"
 
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 // Macro definitions
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**@{*/
-/**
- * @brief Default settings for the WiFi soft access point.
- */
-#define DEF_AP_SSID "INDACT_robotkar"
-/**@}*/
+/** @brief Default SSID for the Soft Access Point. */
+#define DEF_AP_SSID "ESP8266_Controller"
 
-/**
- * @brief Number of the GPIO pin that is being used by this program to give
- *        visual feedback to the user by turning on and off an external LED.
- */
-#define EXT_LED 2
-/** @brief LED on level */
-#define LED_ON LOW
-/** @brief LED off level */
-#define LED_OFF HIGH
-
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 // Using statements
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 
 using namespace std;
+using namespace ESP8266_Controller;
 
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 // Typedef-s, global constants and variables
-// ////////////////////////////////////////////////////////////////////////////
-
-const char msgBeginMarker[] = MESSAGE_BEGIN_MARKER;
-const char msgEndMarker[] = MESSAGE_END_MARKER;
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 
 /** @brief Buffer for the incoming messages. */
-char msg_buffer[MESSAGE_MAX_SIZE + 2] = {0};
-/** @brief Size of the message buffer. */
-const unsigned int messageBufferSize = MESSAGE_MAX_SIZE + 2;
+char receiveBuffer[MESSAGE_MAX_SIZE + 1] = {0};
+
+/** @brief Buffer for the complete messages. */
+char messageBuffer[MESSAGE_MAX_SIZE + 1] = {0};
 
 /** @brief SSID for WiFi connection. */
 char ssid[WIFI_STRING_SIZE + 1] = {0};
+
 /** @brief Password for WiFi connection. */
 char password[WIFI_STRING_SIZE + 1] = {0};
-/** @brief Status message in html format. */
-char status[MESSAGE_MAX_SIZE + 1] = {0};
-/** @brief Position in html format. */
-char position[MESSAGE_MAX_SIZE + 1] = {0};
 
-/**
- * @brief Store the names of the 3 axis of a coordinate system.
- */
-typedef struct
-{
-    const char *axis_1;
-    const char *axis_2;
-    const char *axis_3;
-} CoordSystem;
+/** @brief Buffer for the server type. */
+char serverTypeBuffer[MESSAGE_MAX_SIZE + 1] = {0};
 
-/** @brief Cylindrical coordiante system. */
-const CoordSystem cylindrical = {
-    .axis_1 = "r",
-    .axis_2 = "&phi;",
-    .axis_3 = "z"};
-/** @brief Rectangular coordiante system. */
-const CoordSystem rectangular = {
-    .axis_1 = "x",
-    .axis_2 = "y",
-    .axis_3 = "z"};
-/** @brief Pointer of the displayed coordinate system. */
-const CoordSystem *coordSystem = &cylindrical;
+/** @brief Buffer for the server parameters. */
+char serverParameterBuffer[MESSAGE_MAX_SIZE + 1] = {0};
+
+/** @brief Buffer for a new message. */
+char newMessageBuffer[MESSAGE_MAX_SIZE + 1] = {0};
+
+/** @brief Instance of the wifiServer. */
+WiFiServer wifiServer(80);
 
 /** @brief Instance of the server. */
-WiFiServer server(80);
+ControllerServer server(serverTypeBuffer, sizeof(serverTypeBuffer), serverParameterBuffer, sizeof(serverParameterBuffer));
 
-// ////////////////////////////////////////////////////////////////////////////
+/** @brief Instance of the message handler. */
+MessageHandler messageHandler(receiveBuffer, messageBuffer, sizeof(messageBuffer), MESSAGE_BEGIN_MARKER, MESSAGE_END_MARKER);
+
+/**
+ * @defgroup command_handler_functions Command handler functions
+ * @brief This group contains the command handler functions.
+ * @details Each command handler has the type of CommandHandlerFunction. The command handler
+ * functions are called when their corresponding command is received from the main controller.
+ * @{
+ */
+void resetHandler(const char *data);
+void synchronizeHandler(const char *data);
+void connectStationHandler(const char *data);
+void setupAccessPointHandler(const char *data);
+void ssidHandler(const char *data);
+void passwordHandler(const char *data);
+void configureLayoutHandler(const char *data);
+void updateDataHandler(const char *data);
+/** @} */
+
+/** @brief Array of the commands. */
+const Command commandArray[] = {
+    {STR_RESET, resetHandler},
+    {STR_SYNCHRONIZE, synchronizeHandler},
+    {STR_CONNECT_STATION, connectStationHandler},
+    {STR_SETUP_ACCESS_POINT, setupAccessPointHandler},
+    {STR_SSID, ssidHandler},
+    {STR_PASSWORD, passwordHandler},
+    {STR_CONFIGURE_LAYOUT, configureLayoutHandler},
+    {STR_UPDATE_DATA, updateDataHandler}};
+
+/** @brief Instance of the command handler. */
+CommandHandler commandHandler(commandArray, sizeof(commandArray) / sizeof(Command));
+
+// /////////////////////////////////////////////////////////////////////////////////////////////////
+// Inline functions
+// /////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief Sends a confirmation message to the main controller.
+ */
+inline void sendConfirm(void)
+{
+    messageHandler.sendMessage(STR_CONFIRM);
+}
+
+/**
+ * @brief Sends a fail message to the main controller.
+ */
+inline void sendFail(void)
+{
+    messageHandler.sendMessage(STR_FAIL);
+}
+
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 // Arduino core setup() and loop()
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * @brief Arduino core setup.
  */
 void setup()
 {
-    pinMode(EXT_LED, OUTPUT);
-    digitalWrite(EXT_LED, LED_OFF);
+    pinMode(EXTERNAL_LED, OUTPUT);
+    digitalWrite(EXTERNAL_LED, LED_OFF);
 
     Serial.begin(115200);
 
-    // Start the server
-    server.begin();
+    // Start the wifiServer
+    wifiServer.begin();
 }
 
 /**
@@ -118,16 +146,16 @@ void loop()
     // Handle the messages from the controller
     handle_messages();
 
-    // Let the WiFi tasks run
+    // Let the WiFi task run
     yield();
 
     // Handle the connected clients
     handle_clients();
 }
 
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 // Main handler functions
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * @brief Receives and replys to the incoming messages, if there is a command
@@ -136,31 +164,47 @@ void loop()
 void handle_messages(void)
 {
     // The rest of this function only runs if a full message arrived at Serial.
-    if (!receiveMessage(msg_buffer, messageBufferSize))
+    if (!messageHandler.receiveMessage())
     {
         return;
     }
 
-    interpretCommand(msg_buffer);
+    // Check if the message is a command
+    if (commandHandler.matchCommand(messageHandler.getMessage()))
+    {
+        // Notify the main controller that the command is received
+        sendConfirm();
+
+        // Execute the command
+        commandHandler.executeCommand();
+    }
+    else
+    {
+        // Notify the main controller that the command is not received
+        sendFail();
+    }
 }
 
 /**
- * @brief Checks wether a client is connected or not, and if there is a
- *        connection then handles the requests and closes the connection.
+ * @brief Checks if a client has connected, and if so, handles the request.
  */
 void handle_clients(void)
 {
     // Check if a client has connected
-    WiFiClient client = server.accept();
+    WiFiClient client = wifiServer.accept();
     if (!client)
     {
         return;
     }
 
+    // Wait until the client sends some data
     client.setTimeout(5000);
 
     // Read the first line of the request
     String request_string = client.readStringUntil('\r');
+    
+    // Match the request
+    RequestType type = server.matchRequest(request_string.c_str());
 
     // read/ignore the rest of the request
     while (client.available())
@@ -168,314 +212,205 @@ void handle_clients(void)
         client.read();
     }
 
-    // Match the request
-    RequestType req_type = matchRequest(request_string.c_str());
+    // Send the response to the client
+    server.serverSendResponse(client, type);
 
-    switch (req_type)
+    // Send the message to the controller
+    if (type == RequestType::ACTION)
     {
-    case RequestType::INDEX:
-        // Send the response to the client
-        client.print(F("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"));
-        client.print(FPSTR(gui_main_page));
-        break;
-    case RequestType::INVALID:
-        // Send the response to the client
-        client.print(F("HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\n\r\n"));
-        client.print(FPSTR(back_to_index_page));
-        break;
-    case RequestType::DATA:
-        // Send the response to the client
-        sendDataJSON(client);
-        break;
-    default:
-        // Send the response to the client
-        client.print(F("HTTP/1.1 200 OK\r\n\r\n\r\n"));
-
-        // Send the request to the controller
-        char message[MODULE_REQUEST_SIZE + 1];
-        requestToMessage(req_type, message);
-        sendMessage(message);
-        break;
+        newMessageBuffer[0] = '\0';
+        strcat(newMessageBuffer, STR_ACTION);
+        strcat(newMessageBuffer, " ");
+        strcat(newMessageBuffer, server.getParameters());
+        messageHandler.sendMessage(newMessageBuffer);
     }
 }
 
-// ////////////////////////////////////////////////////////////////////////////
-// Functions for handling WiFi and server tasks
-// ////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
+// Command handler function definitions
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * @brief Connect to an existing WiFi network, and print the IP address on
- *        Serial. If the connection attempt is not successful, then print a
- *        failure message on Serial.
+ * @brief Reset the ESP8266.
+ * @details This function is called when the reset command is received from the main
+ * controller.
+ * @param data Unused
  */
-void connectToNetwork(void)
+void resetHandler(const char *data)
 {
-    // If the SSID and password is not set, then do nothing and notify the
-    // controller about the unsuccessful connection
+    // Remove unused parameter warning
+    (void)data;
+
+    // Reset the ESP8266
+    ESP.reset();
+}
+
+/**
+ * @brief Synchronize the ESP8266.
+ * @details This function is called when the synchronize command is received from the main
+ * controller. The response is sent back to the main controller in the specied format.
+ * @param data Unused
+ */
+void synchronizeHandler(const char *data)
+{
+    // Remove unused parameter warning
+    (void)data;
+
+    // Send the synchronize message
+    for (size_t i = 0; i < SYNC_NUMBER; i++)
+    {
+        messageHandler.sendMessage(STR_SYNC_CODE);
+    }
+}
+
+/**
+ * @brief Connect to the WiFi network.
+ * @details This function is called when the connect station command is received from the main
+ * controller. If the connection is successful, the response is going to be the IP address.
+ * @param data Unused
+ */
+void connectStationHandler(const char *data)
+{
+    // Remove unused parameter warning
+    (void)data;
+
+    // If the SSID and password is not set, then do nothing and notify the controller about the
+    // unsuccessful connection
     if ((ssid[0] == 0) || (password[0] == 0))
     {
         sendFail();
         return;
     }
 
-    // Start the connection process
+    // Set the WiFi mode to Station
     WiFi.mode(WIFI_STA);
+    // Start the connection process
     WiFi.begin(ssid, password);
 
-    // Wait for connection and give visible feedback to the user about the
-    // process
+    // Wait for connection and give visible feedback to the user about the process
     unsigned long start_time = millis();
     while ((WiFi.status() != WL_CONNECTED) && (millis() - start_time) <= CONNECT_TIMEOUT_MS)
     {
+        // Wait while blinking the LED
         delay(250);
-        digitalWrite(EXT_LED, LED_ON);
+        digitalWrite(EXTERNAL_LED, LED_ON);
         delay(250);
-        digitalWrite(EXT_LED, LED_OFF);
+        digitalWrite(EXTERNAL_LED, LED_OFF);
     }
 
     if (WiFi.status() == WL_CONNECTED)
     {
-        String message;
-        message += F("IP ");
-        message += WiFi.localIP().toString();
-        sendMessage(message.c_str());
-        digitalWrite(EXT_LED, LED_ON);
+        // Send the IP address to the controller
+        newMessageBuffer[0] = '\0';
+        strcat_P(newMessageBuffer, PSTR(STR_IP));
+        strcat(newMessageBuffer, " ");
+        strcat(newMessageBuffer, WiFi.localIP().toString().c_str());
+        messageHandler.sendMessage(newMessageBuffer);
+
+        // Give visible feedback to the user
+        digitalWrite(EXTERNAL_LED, LED_ON);
     }
     else
     {
+        // Stop the connection process
         WiFi.disconnect();
+
+        // Send the fail message to the controller
         sendFail();
     }
 }
 
 /**
- * @brief Create a soft access point, and print the IP address on Serial. If
- *        the connection attempt is not successful, then print a failure
- *        message on Serial.
+ * @brief Setup the Soft Access Point.
+ * @details This function is called when the setup access point command is received from the main
+ * controller. If the setup is successful, the response is going to be the IP address.
+ * @param data Unused
  */
-void setupAccessPoint(void)
+void setupAccessPointHandler(const char *data)
 {
+    // Remove unused parameter warning
+    (void)data;
+
+    // Set the mode to Soft Access Point
     WiFi.mode(WIFI_AP);
 
-    if (WiFi.softAP((ssid[0] == 0) ? DEF_AP_SSID : ssid,
-                    (password[0] == 0) ? NULL : password))
+    // Start the access point
+    if (WiFi.softAP((ssid[0] == 0) ? DEF_AP_SSID : ssid, (password[0] == 0) ? NULL : password))
     {
-        String message;
-        message += F("IP ");
-        message += WiFi.softAPIP().toString();
-        sendMessage(message.c_str());
-        digitalWrite(EXT_LED, LED_ON);
+        // Send the IP address to the controller
+        newMessageBuffer[0] = '\0';
+        strcat_P(newMessageBuffer, PSTR(STR_IP));
+        strcat(newMessageBuffer, " ");
+        strcat(newMessageBuffer, WiFi.softAPIP().toString().c_str());
+        messageHandler.sendMessage(newMessageBuffer);
+
+        // Give visible feedback to the user
+        digitalWrite(EXTERNAL_LED, LED_ON);
     }
     else
     {
+        // Stop the connection process
+        WiFi.disconnect();
+
+        // Send the fail message to the controller
         sendFail();
     }
 }
 
 /**
- * @brief Send the data in JSON format to the client.
- * @param client A reference to the client object.
+ * @brief Set the SSID for the WiFi connection.
+ * @details This function is called when the SSID command is received from the main controller.
+ * @param data SSID
  */
-void sendDataJSON(WiFiClient &client)
+void ssidHandler(const char *data)
 {
-    String response;
-    response.concat(F("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"));
-    response.concat(F("{\"status\":\""));
-    response.concat(status);
-    response.concat(F("\",\"csys\":{\"A\":\""));
-    response.concat(coordSystem->axis_1);
-    response.concat(F("\",\"B\":\""));
-    response.concat(coordSystem->axis_2);
-    response.concat(F("\",\"C\":\""));
-    response.concat(coordSystem->axis_3);
-    response.concat(F("\"},\"position\":\""));
-    response.concat(position);
-    response.concat(F("\"}"));
-    client.print(response);
-}
-
-// ////////////////////////////////////////////////////////////////////////////
-// Functions for serial communication tasks
-// ////////////////////////////////////////////////////////////////////////////
-
-/**
- * @brief Interpret a command message, respond and do the appropriate action.
- * @param message The message to be interpreted in string format
- */
-void interpretCommand(const char *message)
-{
-    const regex ex_command("(\\w+)(?: (.*))?");
-
-    cmatch matches;
-    if (regex_match(message, matches, ex_command))
+    // Set the new SSID
+    if (data == NULL)
     {
-        const char *command = matches[1].str().c_str();
-        if (strcmp_P(command, PSTR(STR_RESET)) == 0)
-        {
-            sendConfirm();
-            ESP.reset();
-        }
-        else if (strcmp_P(command, PSTR(STR_SYNCHRONIZE)) == 0)
-        {
-            for (int i = 0; i < SYNC_NUMBER; i++)
-            {
-                sendMessage(STR_SYNC_CODE);
-            }
-        }
-        else if (strcmp_P(command, PSTR(STR_CONNECT_STATION)) == 0)
-        {
-            sendConfirm();
-            connectToNetwork();
-        }
-        else if (strcmp_P(command, PSTR(STR_SETUP_ACCESS_POINT)) == 0)
-        {
-            sendConfirm();
-            setupAccessPoint();
-        }
-        else if (strcmp_P(command, PSTR(STR_SSID)) == 0)
-        {
-            if ((matches.size() < 3) || (matches[2].matched == false))
-            {
-                sendFail();
-            }
-            else
-            {
-                // Set the new SSID
-                strcpy(ssid, matches[2].str().c_str());
-
-                sendConfirm();
-            }
-        }
-        else if (strcmp_P(command, PSTR(STR_PASSWORD)) == 0)
-        {
-            // Set the new password
-            if (matches.size() == 2)
-            {
-                password[0] = 0;
-            }
-            else if (matches.size() >= 3)
-            {
-                strcpy(password, matches[2].str().c_str());
-            }
-            sendConfirm();
-        }
-        else if (strcmp_P(command, PSTR(STR_STATUS)) == 0)
-        {
-            // Set the new status
-            if (matches.size() == 2)
-            {
-                status[0] = 0;
-            }
-            else if (matches.size() >= 3)
-            {
-                strcpy(status, matches[2].str().c_str());
-            }
-            sendConfirm();
-        }
-        else if (strcmp_P(command, PSTR(STR_CHANGE_TO_CYLINDRICAL)) == 0)
-        {
-            // Change the displayed coordinate system
-            coordSystem = &cylindrical;
-            sendConfirm();
-        }
-        else if (strcmp_P(command, PSTR(STR_CHANGE_TO_RECTANGULAR)) == 0)
-        {
-            // Change the displayed coordinate system
-            coordSystem = &rectangular;
-            sendConfirm();
-        }
-        else if (strcmp_P(command, PSTR(STR_POSITION)) == 0)
-        {
-            // Set the new position
-            if (matches.size() == 2)
-            {
-                position[0] = 0;
-            }
-            else if (matches.size() >= 3)
-            {
-                strcpy(position, matches[2].str().c_str());
-            }
-            sendConfirm();
-        }
-        else
-        {
-            sendFail();
-        }
+        ssid[0] = 0;
+    }
+    else
+    {
+        strcpy(ssid, data);
     }
 }
 
 /**
- * @brief Receive a string terminated by one CR and one NL character on the
- *        serial channel. To receive a full message, this function has to be
- *        called until it returns true.
- * @param buffer The place of the received string
- * @param size Size of the buffer, has to be at least the length of the
- *        expected message + 2
- * @return True if the terminating character arrived or the buffer got full,
- *        else false
+ * @brief Set the password for the WiFi connection.
+ * @details This function is called when the password command is received from the main controller.
+ * @param data Password
  */
-bool receiveMessage(char *buffer, size_t size)
+void passwordHandler(const char *data)
 {
-    static char temp[2] = {0};
-    static bool msg_started = false;
-    static size_t idx = 0;
-
-    while (Serial.available() > 0)
+    // Set the new password
+    if (data == NULL)
     {
-        temp[1] = temp[0];
-        temp[0] = Serial.read();
-
-        if ((temp[1] == msgBeginMarker[0]) && (temp[0] == msgBeginMarker[1]))
-        {
-            idx = 0;
-            msg_started = true;
-        }
-        else if (msg_started == true)
-        {
-            if ((temp[1] == msgEndMarker[0]) && (temp[0] == msgEndMarker[1]))
-            {
-                buffer[idx - 1] = '\0';
-                idx = 0;
-                msg_started = false;
-
-                return true;
-            }
-            else
-            {
-                buffer[idx] = temp[0];
-                idx++;
-
-                if (idx >= size)
-                {
-                    idx = 0;
-                    msg_started = false;
-                }
-            }
-        }
+        password[0] = 0;
     }
-
-    return false;
-}
-
-void sendMessage(const char* msg)
-{
-    Serial.print(msgBeginMarker);
-    Serial.print(msg);
-    Serial.print(msgEndMarker);
+    else
+    {
+        strcpy(password, data);
+    }
 }
 
 /**
- * @brief Send a confirmation message trough Serial.
+ * @brief Configure the layout of the board.
+ * @details This function is called when the configure layout command is received from the main
+ * controller.
+ * @param data Layout configuration
  */
-inline void sendConfirm(void)
+void configureLayoutHandler(const char *configuration)
 {
-    sendMessage(STR_CONFIRM);
+    server.setLayoutConfiguration(configuration);
 }
 
 /**
- * @brief Send a notification about failure through Serial.
+ * @brief Update the data of the board.
+ * @details This function is called when the update data command is received from the main
+ * controller.
+ * @param data Data
  */
-inline void sendFail(void)
+void updateDataHandler(const char *data)
 {
-    sendMessage(STR_FAIL);
+    server.setDataUpdate(data);
 }

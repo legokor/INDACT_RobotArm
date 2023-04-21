@@ -1,84 +1,71 @@
 /**
- *******************************************************************************
+ ***************************************************************************************************
  * @file protocols.h
  *
  * @date Feb 01, 2023
- * @author Varga Peter
- *******************************************************************************
- * @brief This file contains the protocol messages for the communication between
- *        the WiFi module and the controller.
- *******************************************************************************
+ * @author Péter Varga
+ ***************************************************************************************************
+ * @brief This file contains the protocol messages for the communication between the WiFi module and
+ * the controller.
+ ***************************************************************************************************
  */
 
 #ifndef PROTOCOLS_H_
 #define PROTOCOLS_H_
 
-// Markers should not to be changed!
+/**
+ * @defgroup message_markers Message markers
+ * @brief The symbols that are used to mark the boundaries of a message.
+ * @note The begin marker must be 2 characters long.
+ * @note The end marker must be 2 characters long.
+ * @note The begin marker and the end marker must be different.
+ * @{
+ */
 #define MESSAGE_BEGIN_MARKER "+_"
-#define MESSAGE_END_MARKER "\r\n"
+#define MESSAGE_END_MARKER "*_"
+/** @} */
 
 /**
- * @brief The sizes of the different strings that the controller can send to
- *        the WiFi module.
+ * @defgroup string_sizes String sizes
+ * @brief The sizes of the different strings that are used in the communication between the WiFi
+ * module and the controller.
+ * @{
  */
-/**@{*/
-#define MESSAGE_MAX_SIZE 128
+#define MESSAGE_MAX_SIZE 1024
 #define WIFI_STRING_SIZE 32
-/**@}*/
+/** @} */
 
-/**
- * @brief Number of times that the synchronization code has to be sent on a synchronization attempt.
- */
+/** Number of times that the synchronization code has to be sent on a synchronization attempt. */
 #define SYNC_NUMBER 4
 
-/**
- * @brief The maximum amount of time in milliseconds to wait for a successful connection.
- */
+/** The maximum amount of time in milliseconds to wait for a successful connection. */
 #define CONNECT_TIMEOUT_MS 30000
 
 /**
- * @brief Command messages from the controller to the WiFi module.
+ * @defgroup command_type_strings Command type strings
+ * @brief Strings that are used to identify the type of a command message.
+ * @{
  */
-/**@{*/
 #define STR_RESET "RS"
 #define STR_SYNCHRONIZE "SYNC"
 #define STR_CONNECT_STATION "CO"
 #define STR_SETUP_ACCESS_POINT "AP"
 #define STR_SSID "SS"
 #define STR_PASSWORD "PS"
-#define STR_STATUS "ST"
-#define STR_CHANGE_TO_CYLINDRICAL "CTC"
-#define STR_CHANGE_TO_RECTANGULAR "CTR"
-#define STR_POSITION "PO"
-/**@}*/
+#define STR_CONFIGURE_LAYOUT "CL"
+#define STR_UPDATE_DATA "UD"
+/** @} */
 
 /**
- * @brief The size of the requests that the WiFi module can send to the controller.
- */
-#define MODULE_REQUEST_SIZE 2
-
-/**@{*/
-/**
- * @brief Response messages from the WiFi module to the controller.
+ * @defgroup response_type_strings Response type strings
+ * @brief Strings that are used to identify the type of a response message.
+ * @{
  */
 #define STR_SYNC_CODE "@@"
 #define STR_CONFIRM "OK"
 #define STR_FAIL "FA"
 #define STR_IP "IP"
-/**@}*/
-
-/**@{*/
-/**
- * @brief Request messages from the WiFi module to the controller.
- */
-#define STR_AXIS_A_PLUS "ap"
-#define STR_AXIS_A_MINUS "am"
-#define STR_AXIS_B_PLUS "bp"
-#define STR_AXIS_B_MINUS "bm"
-#define STR_AXIS_C_PLUS "cp"
-#define STR_AXIS_C_MINUS "cm"
-#define STR_HOMING "hx"
-#define STR_CHANGE_COORDINATES "kx"
-/**@}*/
+#define STR_ACTION "AC"
+/** @} */
 
 #endif /* PROTOCOLS_H_ */

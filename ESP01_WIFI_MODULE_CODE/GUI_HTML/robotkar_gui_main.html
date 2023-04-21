@@ -2,45 +2,56 @@
 <html>
 
 <head>
-    <title>INDACT Robotkar</title>
+    <title>Control</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        main {
+            flex: 1;
+            padding: 10px;
+        }
+
+        footer {
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 10px;
+        }
+
         h1 {
             padding: 10px;
             margin: 10px;
             text-align: center;
         }
 
-        #status,
-        #coordinates {
-            font-size: 24px;
+        .text_field {
+            font-size: 20px;
             font-family: 'Courier New', Courier, monospace;
-            background-color: lightgray;
-            padding: 10px;
-            margin: 10px;
+            background-color: #ddd;
+            padding: 16px;
         }
 
-        .controls {
+        .control_table {
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
             border: 2px solid black;
             border-collapse: collapse;
-            width: 100%;
-            margin: 10px;
         }
 
-        .controls th,
-        .controls td {
+        .control_table th,
+        .control_table td {
             border-bottom: 1px solid #ddd;
             width: 50%;
-        }
-
-        .controls th {
+            padding: 16px;
             font-size: 24px;
-        }
-
-        #position {
-            padding: 10px;
-            font-size: 24px;
-            text-align: center;
         }
 
         button {
@@ -60,8 +71,90 @@
             background-color: darkgray;
             color: white;
         }
+
+        .loader {
+            border: 16px solid #ddd;
+            border-top: 16px solid blueviolet;
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
     <script>
+        function requestConfiguration() {
+            // Send a GET request to the URL of the server
+            const xhr = new XMLHttpRequest();
+            const method = 'GET';
+            const url = window.location.origin + '/config';
+
+            xhr.open(method, url, true);
+            xhr.responseType = 'json';
+            xhr.onload = () => {
+                const status = xhr.status;
+                if (status === 200) {
+                    // The request has been completed successfully
+                    const data = xhr.response;
+                    console.log(data);
+
+                    // JSON
+                    // {
+                    //     title: "string",
+                    //     page_header: "string",
+                    //     control_table_header: "string",
+                    //     text_field_top: [ "string", "string", ... ],
+                    //     text_field_bottom: [ "string", "string", ... ],
+                    //     control_table: [
+                    //         { row_label: "string", row_control: "string" },
+                    //         { row_label: "string", row_control: "string" },
+                    //         ...
+                    //     ],
+                    //     user_script: "string"
+                    // }
+
+                    // Use data, change the DOM
+                    // Set the title and the page header
+                    document.querySelector('title').innerHTML = data.title;
+                    document.getElementById('page_header').innerHTML = data.page_header;
+                    document.getElementById('control_table_header').innerHTML = data.control_table_header;
+
+                    // Set the text fields
+                    document.getElementById('text_field_top').innerHTML = '';
+                    for (let i = 0; i < data.text_field_top.length; i++) {
+                        document.getElementById('text_field_top').innerHTML += `<p class="text_paragraph">${data.text_field_top[i]}</p>`;
+                    }
+                    document.getElementById('text_field_bottom').innerHTML = '';
+                    for (let i = 0; i < data.text_field_bottom.length; i++) {
+                        document.getElementById('text_field_bottom').innerHTML += `<p class="text_paragraph">${data.text_field_bottom[i]}</p>`;
+                    }
+
+                    // Set the control table
+                    document.getElementById('control_table').innerHTML = data.control_table.map((row) => {
+                        return `<tr><td class="row_label">${row.row_label}</td><td class="row_control">${row.row_control}</td></tr>`;
+                    }).join('');
+
+                    document.getElementById('user_script').innerHTML = data.user_script;
+
+                } else {
+                    // There has been an error with the request!
+                    console.log('There has been an error with the request of the configuration! Received status: ' + status);
+                }
+            };
+            xhr.onerror = () => {
+                console.log('An error occured while requesting the configuration.');
+            }
+            xhr.send();
+        }
         function requestData() {
             // Send a GET request to the URL of the server
             const xhr = new XMLHttpRequest();
@@ -79,126 +172,83 @@
 
                     // JSON
                     // {
-                    //     status: ...,
-                    //     csys: {
-                    //         A: ...,
-                    //         B: ...,
-                    //         C: ... 
-                    //     },
-                    //     position: ...
+                    //     text_field_top: [ "string", "string", ... ],
+                    //     text_field_bottom: [ "string", "string", ... ],
+                    //     control_table: [
+                    //         { row_title: "string", row_control: "string" },
+                    //         { row_title: "string", row_control: "string" },
+                    //         ...
+                    //     ]
                     // }
 
                     // Use data, change the DOM
-                    if (data.status === '') {
-                        document.getElementById('status_msg').innerHTML = '( ... )';
-                    } else {
-                        document.getElementById('status_msg').innerHTML = data.status;
+                    // Set the text fields
+                    if (data.text_field_top != null && data.text_field_top.length > 0) {
+                        document.getElementById('text_field_top').innerHTML = '';
+                        for (let i = 0; i < data.text_field_top.length; i++) {
+                            document.getElementById('text_field_top').innerHTML += `<p class="text_paragraph">${data.text_field_top[i]}</p>`;
+                        }
+                    }
+                    if (data.text_field_bottom != null && data.text_field_bottom.length > 0) {
+                        document.getElementById('text_field_bottom').innerHTML = '';
+                        for (let i = 0; i < data.text_field_bottom.length; i++) {
+                            document.getElementById('text_field_bottom').innerHTML += `<p class="text_paragraph">${data.text_field_bottom[i]}</p>`;
+                        }
                     }
 
-                    document.getElementById('axis_A').innerHTML = data.csys.A + ' tengely';
-                    document.getElementById('axis_B').innerHTML = data.csys.B + ' tengely';
-                    document.getElementById('axis_C').innerHTML = data.csys.C + ' tengely';
-
-                    if (data.position === '') {
-                        document.getElementById('status_msg').innerHTML = 'Poz&iacute;ci&oacute;: ( ... )';
-                    } else {
-                        document.getElementById('position').innerHTML = 'Poz&iacute;ci&oacute;: ' + data.position;
+                    // Set the control table
+                    if (data.control_table != null && data.control_table.length > 0) {
+                        document.getElementById('control_table').innerHTML = data.control_table.map((row) => {
+                            return `<tr><td class="row_label">${row.row_title}</td><td class="row_control">${row.row_control}</td></tr>`;
+                        }).join('');
                     }
                 } else {
                     // There has been an error with the request!
-                    console.log('Something went wrong! Received status: ' + status);
+                    console.log('There has been an error with the request of the data! Received status: ' + status);
                 }
             };
             xhr.onerror = () => {
-                console.log('An error occured.');
+                console.log('An error occured while requesting the data.');
             }
             xhr.send();
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Request the configuration
+            requestConfiguration();
+            // Request the data
             requestData();
 
-            // Send an action request to the server if a button is pressed.
-            document.querySelectorAll('button').forEach((button) => {
-                button.onclick = () => {
-                    // Send a GET request to the URL of the server
-                    const xhr = new XMLHttpRequest();
-                    const method = 'GET';
-                    const url = window.location.origin + '/action/' + button.dataset.action;
-
-                    xhr.open(method, url, true);
-                    xhr.onload = () => {
-                        const status = xhr.status;
-                        if (status === 200) {
-                            // The request has been completed successfully
-                            console.log('Data sent and response loaded.');
-                        } else {
-                            // There has been an error with the request!
-                            console.log('Something went wrong! Received status: ' + status);
-                        }
-                    };
-                    xhr.onerror = () => {
-                        console.log('An error occured.');
-                    }
-                    xhr.send();
-                }
-            });
-
-            // Get data from the webserver (WiFi module)
+            // Get data from the server periodically
             const intervalId = setInterval(requestData, 4000);
         });
     </script>
+    <script id="user_script"></script>
 </head>
 
 <body>
-    <h1>INDACT Robotkar</h1>
-    <div id="status">
-        <b>&Aacute;llapot: </b><br>
-        <div id="status_msg">...</div>
-    </div>
-    <table class="controls">
-        <tr>
-            <td id="position" colspan="2">Poz&iacute;ci&oacute;: ...</td>
-        </tr>
-        <tr>
-            <th>
-                <div id="axis_A">A tengely</div>
-            </th>
-            <td>
-                <button data-action="ap">+</button>
-                <button data-action="am">-</button>
-            </td>
-        </tr>
-        <tr>
-            <th>
-                <div id="axis_B">B tengely</div>
-            </th>
-            <td>
-                <button data-action="bp">+</button>
-                <button data-action="bm">-</button>
-            </td>
-        </tr>
-        <tr>
-            <th>
-                <div id="axis_C">C tengely</div>
-            </th>
-            <td>
-                <button data-action="cp">+</button>
-                <button data-action="cm">-</button>
-            </td>
-        </tr>
-        <tr>
-            <th>Alaphelyzet</th>
-            <td>
-                <button data-action="hx">H</button>
-            </td>
-        </tr>
-    </table>
-    <div id="coordinates">
-        <b>Koordin&aacute;ta rendszer v&aacute;lt&aacute;s:</b>
-        (r, &phi;, z) vagy (x, y, z)
-        <button data-action="kx">C</button>
-    </div>
+    <header>
+        <h1 id="page_header">Header</h1>
+        <div class="loader" id="loader"></div>
+    </header>
+
+    <main>
+        <div class="text_field" id="text_field_top">
+            <p>Text Field Top</p>
+        </div>
+        <table class="control_table" id="control_table">
+            <tr>
+                <th colspan="2" id="control_table_header">Control Table</th>
+            </tr>
+        </table>
+        <div class="text_field" id="text_field_bottom">
+            <p>Text Field Bottom</p>
+        </div>
+    </main>
+
+    <footer>
+        <p>Created by P&eacute;ter Varga, 2023</p>
+    </footer>
 </body>
 
 </html>

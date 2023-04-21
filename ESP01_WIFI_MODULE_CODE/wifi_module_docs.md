@@ -3,6 +3,6 @@ _Ez a dokumentum tartalmazza a robotkar WiFi vezérlő moduljának a kódjának 
 ## Projekt célja
 // TODO
 ## Fejlesztő környezet
-A kódot az Arduino IDE 2 fejlesztőkörnyezetben készítettem. A használt könyvtárakat az ESP8266 Arduino Core Github projectből importáltam az IDE könyvtárkezelőjének segítségével. A programomhoz használtam még C és C++ std könyvtárakat.
+A kódot a Visual Studio Code Arduino Extension fejlesztőkörnyezetben készítettem. A használt könyvtárakat az ESP8266 Arduino Core Github projectből importáltam az IDE könyvtárkezelőjének segítségével. A programomhoz használtam még C és C++ standard könyvtárakat.
 ## Felépítés
 // TODO

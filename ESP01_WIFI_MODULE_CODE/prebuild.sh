@@ -1,0 +1,4 @@
+python convert_text_to_cstring.py GUI_HTML/robotkar_gui_main.html RobotKar_WIFI/cstring_text/robotkar_gui_main_cstring.h
+python convert_text_to_cstring.py GUI_HTML/robotkar_back_to_index.html RobotKar_WIFI/cstring_text/robotkar_back_to_index_cstring.h
+python convert_text_to_cstring.py RobotKar_WIFI/default_json/default_configuration.json RobotKar_WIFI/cstring_text/default_configuration_cstring.h
+python convert_text_to_cstring.py RobotKar_WIFI/default_json/default_data.json RobotKar_WIFI/cstring_text/default_data_cstring.h
