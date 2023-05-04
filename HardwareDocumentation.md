@@ -33,7 +33,7 @@ The diagram below shows how power is distributed.
 
 ## The main microcontroller
 
-The arm is mainly controlled and programmed through **ROS** (the Robot Operating System) running on a PC connected via Ethernet. Direct control is possible from a remote connected over Wifi, or a wired remote (for debugging and tesing purposes).
+The arm is mainly controlled and programmed through **ROS** (the Robot Operating System) running on a PC connected via Ethernet. Direct control is possible from a remote connected over Wifi, a LeapMotion sensor and application also connected over Wifi, or a wired remote (for debugging and tesing purposes).
 
 An **STM32F7**46ZG microcontroller running **micro-ROS** firmware (located on a **Nucleo-F746** development board, connected to the Main Control Board via pin headers) performs low-level control and telemetry data collection:
 
@@ -55,8 +55,8 @@ Detailed information (including datasheet) about the microcontroller can be foun
 
 ## Peripherals
 
-* The STM32F7 microcontroller can only read 4 separate encoders, so for complete and precise control in 6 degrees of freedom, an additional Cortex-M0-based, smaller microcontroller may be soldered directly to the Main Control Board, to extend the timer capabilities of the Nucleo, and thus control the planned **Alpha, Beta and Theta axes**, and report back their position and speed. This microcontroller communicates with the Nucleo over SPI. The exact model of this microcontroller is TBD.
-* The Wifi remote connects over Wifi to an ESP-01 Wifi module, connected to the Nucleo over a full-duplex serial (UART) connection (and 4 additional GPIO control signals).
+* The STM32F7 microcontroller can only read 4 separate encoders, so for complete and precise control in 6 degrees of freedom, an additional Cortex-M0-based, smaller microcontroller may be soldered directly to the Main Control Board, to extend the timer capabilities of the Nucleo, and thus control the planned **Alpha and Beta axes**, and report back their position and speed. This microcontroller communicates with the Nucleo over SPI. For this task, the **STM32F030K6Tx** microcontroller was selected. It is readily available, affordable, and has enough peripherals for controlling 2 motors.
+* The Wifi remote and LeapMotion application connect over Wifi to an ESP-01 Wifi module, connected to the Nucleo over a full-duplex serial (UART) connection (and 4 additional GPIO control signals).
 * The wired remote features one pushbutton for each direction of each axis and servo, up to 18 in total, pulling a corresponding GPIO input to ground.
 * All axes feature limit switches to prevent movement outside the safe operating movement range. These are all connected to correspoding GPIO pins.
 * Some axes feature additional position sensing gates to aid the robot in determining its position. These are all connected to corresponding GPIO pins.
@@ -77,32 +77,44 @@ The diagram below shows how control signals and peripherals are connected.
 
 ![Control signals diagram](./control.png)
 
-Current microcontroller connection list (Nucleo-only):
+Microcontroller connections for the Nucleo board:
 
 | Peripheral | Type of connection | Optical isolation | Number of connections |
 | :--------: | :----------------: | :---------------: | :------------------------ |
-| Limit switch | digital input | yes | 6 (R, Z, Phi axes, 2 each) |
-| Position sensing gate | digital input | yes | 4 (R, Z axes, 2 each) |
+| Limit switch | digital input | yes | 8 (R, Z, Phi, Theta axes, 2 each) |
+| Position sensing gate | digital input | yes | 2 (R, Z axes, 1 each) |
 | Encoder | 32-bit timer digital input | yes | 8 (R, Z, Phi, Theta axes, 2 wires each) |
-| Temperature sensor | I2C | no | 2 (SDA, SCL) |
+| Temperature sensor | I2C master | no | 2 (SDA, SCL) |
+| Secondary microcontroller | I2C master | no | 2 (SDA, SCL) |
 | ESTOP button | digital input | no | 1 |
 | Door switch | digital input | no | 1 |
 | Wired remote buttons | digital input | no | 6...18 (all axes and servos, 2 each) |
 | Cooling fan | PWM output | no | 1 |
 | Stepper motor driver | digital and PWM output | no | 12 (R, Z, Phi, Theta axes, 3 wires each) |
 | Servo | PWM output | yes | 3 (3 servos, 1 wire each) |
-| Display | paralel digital input-output and PWM putput | no | 11+1 (paralel IO + backlight) |
+| Display | paralel digital input-output and PWM output | no | 11+1 (paralel IO + backlight) |
 | Wifi module | UART and digital output | no | 4 (Rx, Tx, CH-PD, Reset) |
-| MODBUS link | UART | yes | 2 (Rx, Tx) |
+| MODBUS link | UART | no | 2 (Rx, Tx) |
 | SPI expansion | SPI | no | 4 (SCL, MISO, MOSI, NSS) |
 | Nucleo Ethernet | built-in | no | built-in |
-| Nucleo Reset and other buttons | built-in | no | built-in |
+| Nucleo Reset, boot, oscillators and buttons | built-in | no | built-in |
 | Nucleo USB-OTG | built-in | no | built-in |
 | Nucleo LEDs | built-in | no | built-in |
+| Nucleo SWD / ST-LINK programming | built-in | no | built-in |
 
-`TODO update when aux. microcontroller implemented`
+Microcontroller connections for the secondary STM32F0 microcontroller:
 
-## Nucleo-only pinout and IO configuration
+| Peripheral | Type of connection | Optical isolation | Number of connections |
+| :--------: | :----------------: | :---------------: | :------------------------ |
+| Primary microcontroller (Nucleo) | I2C slave | no | 2 (SDA, SCL) |
+| Limit switch | digital input | yes | 4 (Alpha, Beta axes, 2 each) |
+| Encoder | 32-bit timer digital input | yes | 4 (Alpha, Beta axes, 2 wires each) |
+| Stepper motor driver | digital and PWM output | no | 6 (Alpha, Beta axes, 3 wires each) |
+| SWD programming | Serial Wire Debug | no | 2 (SWCLK, SWDIO) |
+| Reset and boot pins | NRST, BOOT0 special inputs | no | 2 |
+| HSE crystal oscillator | RCC pins | no | 2 |
+
+## Pinout and IO configuration
 
 The table below contains pinout information for the STM32F746 Nucleo board.
 
@@ -191,26 +203,26 @@ The table below contains pinout information for the STM32F746 Nucleo board.
 | PF0 | I2C2_SDA | Temperature sensor data |
 | PF1 | I2C2_SCL | Temperature sensor clock |
 | PF2 |  |  |
-| PF3 |  |  |
-| PF4 |  |  |
-| PF5 | GPIO_OUT | LCD Data (H) / Command (L) |
-| PF6 | GPIO_OUT | LCD Read-Write (MCU->LCD H, LCD->MCU L) |
-| PF7 | GPIO_OUT | LCD Enable |
-| PF8 | GPIO_OUT | LCD paralel data 0 |
-| PF9 | GPIO_OUT | LCD paralel data 1 |
-| PF10 | GPIO_OUT | LCD paralel data 2 |
-| PF11 | GPIO_OUT | LCD paralel data 3 |
-| PF12 | GPIO_OUT | LCD paralel data 4 |
-| PF13 | GPIO_OUT | LCD paralel data 5 |
-| PF14 | GPIO_OUT | LCD paralel data 6 |
-| PF15 | GPIO_OUT | LCD paralel data 7 |
+| PF3 | GPIO_OUT | LCD Data (H) / Command (L) |
+| PF4 | GPIO_OUT | LCD Read-Write (MCU->LCD H, LCD->MCU L) |
+| PF5 | GPIO_OUT | LCD Enable |
+| PF6 | GPIO_OUT | LCD paralel data 0 |
+| PF7 | GPIO_OUT | LCD paralel data 1 |
+| PF8 | GPIO_OUT | LCD paralel data 2 |
+| PF9 | GPIO_OUT | LCD paralel data 3 |
+| PF10 | GPIO_OUT | LCD paralel data 4 |
+| PF11 | GPIO_OUT | LCD paralel data 5 |
+| PF12 | GPIO_OUT | LCD paralel data 6 |
+| PF13 | GPIO_OUT | LCD paralel data 7 |
+| PF14 | I2C4_SCL | Secondary microcontroller (STM32F0) data |
+| PF15 | I2C4_SCL | Secondary mocrocontroller (STM32F0) clock |
 | PG0 | GPIO_EXTI0 | ESTOP interrupt input |
 | PG1 | GPIO_IN | Door switch input |
 | PG2 | GPIO_IN | Z axis Position sensing gate 1 |
-| PG3 | GPIO_IN | Z axis Position sensing gate 2 |
+| PG3 | GPIO_IN | ? Z axis Position sensing gate 2 ? |
 | PG4 | GPIO_IN | R axis Position sensing gate 1 |
-| PG5 | GPIO_IN | R axis Position sensing gate 2 |
-| PG6 | GPIO_OUT |  |
+| PG5 | GPIO_IN | ? R axis Position sensing gate 2 ? |
+| PG6 | GPIO_OUT | ? |
 | PG7 | USB_OverCurrent | USB (built-in) |
 | PG8 |  |  |
 | PG9 |  |  |
@@ -242,8 +254,38 @@ The table below contains pinout information for the STM32F746 Nucleo board.
 * The wired remote (one pushbutton for each direction of each axis) uses GPIO pins PA5 (Phi CCW), PA15 (Phi CW), PB1 (Z up), PB11 (Z down), PB12 (R out), PB15 (R in), PC2 (Theta CCW), PC3 (Theta CW), PC8 (Servo 1 curl), PC9 (Servo 1 straighten), PD10 (Servo 2 curl), PD11 (Servo 2 straighten), PD14 (Servo 3 curl), PD15 (Servo 3 straighten), as inputs, with internal pull-up.
 * The rest of the GPIO pins (PC0, PD7, PE4, PE15, PF2, PF3, PF4, PG8, PG9, PG12) are routed to connectors on the Main Control Board, for the possibility of future expansion.
 
-## Nucleo and Cortex-M0 pinouts and IO configuration
-`TODO fill this section`
+The table below contains pinout information for the STM32F030K6TX secondary microcontroller.
+
+| Pin | Function | Notes |
+| --: | :------- | :---- |
+| PA0 | GPIO_IN | Alpha axis Limit switch 1 |
+| PA1 | GPIO_IN | Alpha axis Limit switch 2 |
+| PA2 | GPIO_IN | Beta axis Limit switch 1 |
+| PA3 | GPIO_IN | Beta axis Limit switch 2 |
+| PA4 | TIM14_CH1 | Alpha axis stepper motor driver Step PWM control |
+| PA5 | | |
+| PA6 | TIM16_CH1 | Beta axis stepper motor driver Step PWM control |
+| PA7 | TIM3_CH2 | Beta axis Encoder B |
+| PA8 | TIM1_CH1 | Alpha axis Encoder A |
+| PA9 | TIM1_CH2 | Alpha axis Encoder B |
+| PA10 | I2C1_SDA | Primary microcontroller (Nucleo) data |
+| PA11 | | |
+| PA12 | | |
+| PA13 | SWDIO | Serial Wire Debug programming |
+| PA14 | SWCLK | Serial Wire Debug programming |
+| PA15 | | |
+| PB0 | GPIO_OUT | Alpha axis stepper motor driver Direction |
+| PB1 | GPIO_OUT | Alpha axis stepper motor driver Enable |
+| PB2 | does not exist | |
+| PB3 | GPIO_OUT | Beta axis steper motor driver Direction |
+| PB4 | TIM3_CH1 | Beta axis Encoder A |
+| PB5 | GPIO_OUT | Beta axis stepper motor driver Enable |
+| PB6 | I2C1_SCL | Primary microcontroller (Nucleo) clock |
+| PB7 | | |
+| PF0 | RCC_OSC_IN | External high-speed oscilaltor |
+| PF1 | RCC_OSC_OUT | External high-speed oscillator |
+| BOOT0 | Boot selector | jumper to select between running and programming |
+| NRST | System reset | SWD reset, Nucleo reset (through transistor), RC network, reset jumper |
 
 # Electrical Design
 
@@ -271,7 +313,7 @@ The electronics operating the arm are categorised by location as follows:
         * Space for planned Theta, Alpha, Beta axes motor drivers (BLDC or stepper)
     3. The Main Control Board
         * Nucleo-F746 development board {Nucleo-morpho pin header}
-        * auxiliary Cortex-M0 microcontroller and related circuitry (capacitors, crystal oscillators, JTAG programming, Boot configuration, etc.) {optionally soldered on when Alpha, Beta and Theta axes are implemented}
+        * secondary STM32F030K6TX microcontroller and related circuitry (capacitors, crystal oscillators, SWD programming, Boot configuration, etc.) {optionally soldered on when Alpha and Beta axes are implemented}
         * 5V to 3.3V Low-Dropout (LDO) linear regulator
         * Filtering and decoupling ceramic capacitors, bulk decoupling electrolytic capacitors
         * ESD protection
@@ -283,39 +325,66 @@ The electronics operating the arm are categorised by location as follows:
         * LTV847 quad optocouplers for slower signals, and SFH6345 digital optocouplers for PWM and fast signals
         * Screw terminals for power input (24V, COM_PSU2, 5V, COM_PSU3), ESTOP (COM_PSU3, GPIO), Electronics Box door switch (COM_PSU3, GPIO), motor driver control signals (6x3 + COM_PSU3)
         * DB-25 connector to wired remote (18 GPIOs, 7x COM_PSU3)
-        * Connection to Aux Control Board 1 (3 encoders, 4 limit switches, 2 position sensing gates, 24V, COM_PSU2) and Aux. Control Board 2 (3 encoders, 8 limit switches, 2 position sensing gates, 3 servos, 24V, COM_PSU2)
+        * Connection to Aux Control Board 1 (3 encoders, 4 limit switches, 1 position sensing gate, 24V, COM_PSU2) and Aux. Control Board 2 (3 encoders, 8 limit switches, 1 position sensing gate, 3 servos, 24V, COM_PSU2) (DB-37 connector for sensors, the servos are spliced into the MODBUS DB-9 connector since they are not both used at the same time)
     4. Other miscellania
         * Cooling fan(s)
         * Door switch
         * ESTOP button
-        * the wired remote itself on an 1m cable
+        * Mains power connector
+        * USB and Externet extensions for the Nucleo
+        * DB-25 connectors for the stepper motor connections
+        * Mounting hardware
 2. Mounted on (or near) Z axis
     1. Aux. Control Board 1: mounted on the back of the Z axis profile approx. in the middle
         * 24V to 5V Buck converter and 5V to 3.3V LDO, LED indicator
         * decoupling capacitors
         * Optocouplers
-        * connectors to Phi, R and Z axis encoders, Phi and Z axis limit switches, Z axis position sensing gates
-        * connector to Main Cntrol Board
+        * connectors to Phi, R and Z axis encoders, Phi and Z axis limit switches, Z axis position sensing gate
+        * connector to Main Cntrol Board (DB-15)
     2. Z axis stepper motor + Z axis encoder
     3. Phi axis stepper motor + Phi axis encoder
     4. R axis stepper motor + R axis encoder
-    5. Z axis limit switches and position gates
+    5. Z axis limit switches and position gate
     6. Phi axis limit switches
 3. Mounted on (or near) R axis
     1. Aux. Control Board 2: mounted on the fron of the R axis profile towards the end-effector
         * 24V to 5V Buck converter and 5V to 3.3V LDO, LED indicator
         * decoupling capacitors
         * Optocouplers
-        * connectors to end-effector servos, Alpha, Beta and Theta axis encoders, R, Alpha, Beta and Theta axis limit switches, R axis position gates
+        * connectors to end-effector servos, Alpha, Beta and Theta axis encoders, R, Alpha, Beta and Theta axis limit switches, R axis position gate
         * MODBUS termination (without pull-up and pull-down resistors and shield connection), line driver, DB-9 connector, output to end-effector
-        * connector to Main Control Board
-    2. R axis limit switches and position gates
+        * connector to Main Control Board (DB-15)
+    2. R axis limit switches and position gate
     3. Alpha, Beta and Theta axis motors (planned), with encoders and limit switches
     4. The end-effector
 
 The Main Control Board is designed with Altium Designer. The Auxiliary Control Boards are designed with KiCAD as one board, manufactured together, and separated later along the perforated edge. All boards are assembled in-house by project members.
 
 Connector pinouts are marked on boards, and most connectors used can only be connected in the correct orientation.
+
+## Connector pinouts
+
+1. P1: DB-25 connector on the Electronics Box
+    Counterpart on the base of the robot
+    "Main motors": connecting R, Z and Phi axis stepper motors to their motor drivers
+    
+    | Pin | Function | Note |
+    | --: | :------: | :--- |
+    | 1 | COM_MOTOR | Motor drivers motor side common point |
+    | 2 | Phi_A+ | Phi axis stepper motor A+ winding |
+    | 3 | Phi_A+ | Phi axis stepper motor A+ winding |
+    | 4 | Phi_A- | Phi axis stepper motor A- winding |
+    | 5 | Phi_A- | Phi axis stepper motor A- winding |
+    | 6 | Phi_B+ | Phi axis stepper motor B+ winding |
+    | 7 | Phi_B+ | Phi axis stepper motor B+ winding |
+    | 8 | Phi_B- | Phi axis stepper motor B- winding |
+    | 9 | Phi_B- | Phi axis stepper motor B- winding |
+    | 10 | R_A+ | R axis stepper motor A+ winding |
+    | 11 | R_A+ | R axis stepper motor A+ winding |
+    | 12 | R_A- | R axis stepper motor A- winding |
+    | 13 | R_A- | R axis stepper motor A- winding |
+    | 14 | R_B+ | R axis stepper motor B+ watching |
+    | 15 | R_B+ | R axis stepper motor driver 
 
 ## Main Control Board schematic
 
