@@ -351,9 +351,9 @@ The electronics operating the arm are categorised by location as follows:
         * 24V to 5V Buck converter and 5V to 3.3V LDO, LED indicator
         * decoupling capacitors
         * Optocouplers
-        * connectors to end-effector servos, Alpha, Beta and Theta axis encoders, R, Alpha, Beta and Theta axis limit switches, R axis position gate
-        * MODBUS termination (without pull-up and pull-down resistors and shield connection), line driver, DB-9 connector, output to end-effector
-        * connector to Main Control Board (DB-15)
+        * connectors to end-effector servos, Alpha, Beta and Theta axis encoders, R, Alpha, Beta and Theta axis limit switches, R axis position gate (pin headers)
+        * MODBUS termination (without pull-up and pull-down resistors and shield connection), line driver, DB-9 connector input (with servos), output to end-effector also DB-9 connector (original MODBUS)
+        * connector to Main Control Board (DB-25 and MODBUS+servo DB-9)
     2. R axis limit switches and position gate
     3. Alpha, Beta and Theta axis motors (planned), with encoders and limit switches
     4. The end-effector
@@ -364,27 +364,663 @@ Connector pinouts are marked on boards, and most connectors used can only be con
 
 ## Connector pinouts
 
-1. P1: DB-25 connector on the Electronics Box
-    Counterpart on the base of the robot
-    "Main motors": connecting R, Z and Phi axis stepper motors to their motor drivers
+> All pinout drawings show the plug, viewed head-on from the receptacle.
+
+1. P1a: DB-25 connector on the back of the Electronics Box, color-coded <span style="color: red">**RED**</span>.
+    <img src="./db25.png" width=142 height=50 alt="DB-25 connector drawing"/>
     
-    | Pin | Function | Note |
-    | --: | :------: | :--- |
-    | 1 | COM_MOTOR | Motor drivers motor side common point |
-    | 2 | Phi_A+ | Phi axis stepper motor A+ winding |
-    | 3 | Phi_A+ | Phi axis stepper motor A+ winding |
-    | 4 | Phi_A- | Phi axis stepper motor A- winding |
-    | 5 | Phi_A- | Phi axis stepper motor A- winding |
-    | 6 | Phi_B+ | Phi axis stepper motor B+ winding |
-    | 7 | Phi_B+ | Phi axis stepper motor B+ winding |
-    | 8 | Phi_B- | Phi axis stepper motor B- winding |
-    | 9 | Phi_B- | Phi axis stepper motor B- winding |
-    | 10 | R_A+ | R axis stepper motor A+ winding |
-    | 11 | R_A+ | R axis stepper motor A+ winding |
-    | 12 | R_A- | R axis stepper motor A- winding |
-    | 13 | R_A- | R axis stepper motor A- winding |
-    | 14 | R_B+ | R axis stepper motor B+ watching |
-    | 15 | R_B+ | R axis stepper motor driver 
+    - Counterpart (P1b) on the base of the robot
+    - "Main motors": connecting R, Z and Phi axis stepper motors to their motor drivers
+    - The motor wires break out from P1b through screw terminals in the base of the robot.
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Pin</th>
+                <th>Function</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>COM_MOT</td>
+                <td>Motor side common point of motor drivers</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td rowspan=2>Phi_A+</td>
+                <td rowspan=2>Phi axis stepper motor A winding positive</td>
+            </tr>
+            <tr>
+                <td>3</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td rowspan=2>Phi_B+</td>
+                <td rowspan=2>Phi axis stepper motor B winding positive</td>
+            </tr>
+            <tr>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td rowspan=2>R_A+</td>
+                <td rowspan=2>R axis stepper motor A winding positive</td>
+            </tr>
+            <tr>
+                <td>7</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td rowspan=2>R_B+</td>
+                <td rowspan=2>R axis stepper motor B winding positive</td>
+            </tr>
+            <tr>
+                <td>9</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td rowspan=2>Z_A+</td>
+                <td rowspan=2>Z axis stepper motor A winding positive</td>
+            </tr>
+            <tr>
+                <td>11</td>
+            </tr>
+            <tr>
+                <td>12</td>
+                <td rowspan=2>Z_B+</td>
+                <td rowspan=2>Z axis stepper motor B winding positive</td>
+            </tr>
+            <tr>
+                <td>13</td>
+            </tr>
+            <tr>
+                <td>14</td>
+                <td rowspan=2>Phi_A-</td>
+                <td rowspan=2>Phi axis stepper motor A winding negative</td>
+            </tr>
+            <tr>
+                <td>15</td>
+            </tr>
+            <tr>
+                <td>16</td>
+                <td rowspan=2>Phi_B-</td>
+                <td rowspan=2>Phi axis stepper motor B winding negative</td>
+            </tr>
+            <tr>
+                <td>17</td>
+            </tr>
+            <tr>
+                <td>18</td>
+                <td rowspan=2>R_A-</td>
+                <td rowspan=2>R axis stepper motor A winding negative</td>
+            </tr>
+            <tr>
+                <td>19</td>
+            </tr>
+            <tr>
+                <td>20</td>
+                <td rowspan=2>R_B-</td>
+                <td rowspan=2>R axis stepper motor B winding negative</td>
+            </tr>
+            <tr>
+                <td>21</td>
+            </tr>
+            <tr>
+                <td>22</td>
+                <td rowspan=2>Z_A-</td>
+                <td rowspan=2>Z axis stepper motor A winding negative</td>
+            </tr>
+            <tr>
+                <td>23</td>
+            </tr>
+            <tr>
+                <td>24</td>
+                <td rowspan=2>Z_B-</td>
+                <td rowspan=2>Z axis stepper motor B winding negative</td>
+            </tr>
+            <tr>
+                <td>25</td>
+            </tr>
+        </tbody>
+    </table> 
+
+2. P2a: DB-25 connector on the back of the Electronics Box, color-coded <span style="color: saffron">**YELLOW**</span>.
+    <img src="./db25.png" width=142 height=50 alt="DB-25 connector drawing"/>
+    
+    - Counterpart (P2b) on the base of the robot
+    - "Wrist motors": connecting the planned Alpha, Beta and Theta axis stepper motors to their motor drivers
+    - The motor wires break out from P2b through screw terminals in the base of the robot.
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Pin</th>
+                <th>Function</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>COM_MOT</td>
+                <td>Motor side common point of motor drivers</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td rowspan=2>Theta_A+</td>
+                <td rowspan=2>Theta axis stepper motor A winding positive</td>
+            </tr>
+            <tr>
+                <td>3</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td rowspan=2>Theta_B+</td>
+                <td rowspan=2>Theta axis stepper motor B winding positive</td>
+            </tr>
+            <tr>
+                <td>5</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td rowspan=2>Alpha_A+</td>
+                <td rowspan=2>Alpha axis stepper motor A winding positive</td>
+            </tr>
+            <tr>
+                <td>7</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td rowspan=2>Alpha_B+</td>
+                <td rowspan=2>Alpha axis stepper motor B winding positive</td>
+            </tr>
+            <tr>
+                <td>9</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td rowspan=2>Beta_A+</td>
+                <td rowspan=2>Beta axis stepper motor A winding positive</td>
+            </tr>
+            <tr>
+                <td>11</td>
+            </tr>
+            <tr>
+                <td>12</td>
+                <td rowspan=2>Beta_B+</td>
+                <td rowspan=2>Beta axis stepper motor B winding positive</td>
+            </tr>
+            <tr>
+                <td>13</td>
+            </tr>
+            <tr>
+                <td>14</td>
+                <td rowspan=2>Theta_A-</td>
+                <td rowspan=2>Theta axis stepper motor A winding negative</td>
+            </tr>
+            <tr>
+                <td>15</td>
+            </tr>
+            <tr>
+                <td>16</td>
+                <td rowspan=2>Theta_B-</td>
+                <td rowspan=2>Theta axis stepper motor B winding negative</td>
+            </tr>
+            <tr>
+                <td>17</td>
+            </tr>
+            <tr>
+                <td>18</td>
+                <td rowspan=2>Alpha_A-</td>
+                <td rowspan=2>Alpha axis stepper motor A winding negative</td>
+            </tr>
+            <tr>
+                <td>19</td>
+            </tr>
+            <tr>
+                <td>20</td>
+                <td rowspan=2>Alpha_B-</td>
+                <td rowspan=2>Alpha axis stepper motor B winding negative</td>
+            </tr>
+            <tr>
+                <td>21</td>
+            </tr>
+            <tr>
+                <td>22</td>
+                <td rowspan=2>Beta_A-</td>
+                <td rowspan=2>Beta axis stepper motor A winding negative</td>
+            </tr>
+            <tr>
+                <td>23</td>
+            </tr>
+            <tr>
+                <td>24</td>
+                <td rowspan=2>Beta_B-</td>
+                <td rowspan=2>Beta axis stepper motor B winding negative</td>
+            </tr>
+            <tr>
+                <td>25</td>
+            </tr>
+        </tbody>
+    </table>
+
+3. P3a: DB-37 connector on the back of the Electronics Box, color-coded <span style="color: blue">**BLUE**</span>.
+    <img src="./db37.png" width=190 height=50 alt="DB-37 connector drawing"/>
+    
+    - Counterpart (P3b) on the base of the robot
+    - "Robot sensors": connecting the encoder, limit switch, and position sensing gate connections, as well as +24V and COM of the Auxiliary Control Boards to the Main Control Board.
+    - The sensor and 24V power wires break out from P3b to a DB-15 connector (Aux. Control Board 1) and DB-25 connector (Aux. Control Board 2)
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Pin</th>
+                <th>Function</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>Phi_ENC_A</td>
+                <td>Phi axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>Z_ENC_A</td>
+                <td>Z axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>R_ENC_A</td>
+                <td>R axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>Theta_ENC_A</td>
+                <td>Theta axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td>Alpha_ENC_A</td>
+                <td>Alpha axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td>Beta_ENC_A</td>
+                <td>Beta axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td>Phi_LimSw_1</td>
+                <td>Phi axis limit switch 1</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td>Z_LimSw_1</td>
+                <td>Z axis limit switch 1 (top)</td>
+            </tr>
+            <tr>
+                <td>11</td>
+                <td>R_LimSw_1</td>
+                <td>R axis limit switch 1 (EE side)</td>
+            </tr>
+            <tr>
+                <td>12</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>13</td>
+                <td>Theta_LimSw_1</td>
+                <td>Theta axis limit switch 1</td>
+            </tr>
+            <tr>
+                <td>14</td>
+                <td>Alpha_LimSw_1</td>
+                <td>Alpha axis limit switch 1</td>
+            </tr>
+            <tr>
+                <td>15</td>
+                <td>Beta_LimSw_1</td>
+                <td>Beta axis limit switch 1</td>
+            </tr>
+            <tr>
+                <td>16</td>
+                <td>Phi_Pos</td>
+                <td>Phi axis position sensing gate</td>
+            </tr>
+            <tr>
+                <td>17</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>18</td>
+                <td>Z_Pos</td>
+                <td>Z axis position sensing gate</td>
+            </tr>
+            <tr>
+                <td>19</td>
+                <td>+24V</td>
+                <td>24V (PSU2) supply voltage</td>
+            </tr>
+            <tr>
+                <td>20</td>
+                <td>Phi_ENC_B</td>
+                <td>Phi axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>21</td>
+                <td>Z_ENC_B</td>
+                <td>Z axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>22</td>
+                <td>R_ENC_B</td>
+                <td>R axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>23</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>24</td>
+                <td>Theta_ENC_B</td>
+                <td>Theta axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>25</td>
+                <td>Alpha_ENC_B</td>
+                <td>Alpha axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>26</td>
+                <td>Beta_ENC_B</td>
+                <td>Beta axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>27</td>
+                <td>Phi_LimSw_2</td>
+                <td>Phi axis limit switch 2</td>
+            </tr>
+            <tr>
+                <td>28</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>29</td>
+                <td>Z_LimSw_2</td>
+                <td>Z axis limit switch 2 (bottom)</td>
+            </tr>
+            <tr>
+                <td>30</td>
+                <td>R_LimSw_2</td>
+                <td>R axis lmit switch 2 (empty side)</td>
+            </tr>
+            <tr>
+                <td>31</td>
+                <td>Theta_LimSw_2</td>
+                <td>Theta axis limit switch 2</td>
+            </tr>
+            <tr>
+                <td>32</td>
+                <td>Alpha_LimSw_2</td>
+                <td>Alpha axis lmit switch 2</td>
+            </tr>
+            <tr>
+                <td>33</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>34</td>
+                <td>Beta_LimSw_2</td>
+                <td>Beta axis lmit switch 2</td>
+            </tr>
+            <tr>
+                <td>35</td>
+                <td>R_Pos</td>
+                <td>R axis position sensing gate</td>
+            </tr>
+            <tr>
+                <td>36</td>
+                <td>Theta_Pos</td>
+                <td>Theta axis position sensing gate</td>
+            </tr>
+            <tr>
+                <td>37</td>
+                <td>+24V</td>
+                <td>24V (PSU2) supply voltage</td>
+            </tr>
+        </tbody>
+    </table>
+
+4. P4a: DB-9 connector on the back of the Electronics Box, color-coded <span style="color: green">**GREEN**</span>.
+    <img src="./db9.png" width=67 height=50 alt="DB-9 connector drawing"/>
+    
+    - Counterpart (P2b) on the base of the robot
+    - "End-effector": MODBUS conenction for future smart end-effectors, and 3 servo PWM connections for the current end-effector
+    - P2b is connected to Aux. Control Board 2 directly through a DB-9 extension.
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Pin</th>
+                <th>Function</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>COM5</td>
+                <td>5V (PSU3) common point</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>+5V</td>
+                <td>5V (PSU3) supply voltage for MODBUS</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>EE_Srv_1_PWM</td>
+                <td>End-effector Servo 1 PWM</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>Rx_1</td>
+                <td>MODBUS Rx diff. pair high</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>Tx_1</td>
+                <td>MODBUS Tx diff. pair high</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td>EE_Srv_2_PWM</td>
+                <td>End-effector Servo 2 PWM</td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td>EE_Srv_3_PWM</td>
+                <td>End-effector Servo 3 PWM</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td>Rx_0</td>
+                <td>MODBUS Rx diff. pair low</td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td>Tx_0</td>
+                <td>MODBUS Tx diff. pair low</td>
+            </tr>
+        </tbody>
+    </table>
+
+5. P5a: DB-25 connector on the front of the Electronics Box, color-coded **WHITE**.
+    <img src="./db25.png" width=142 height=50 alt="DB-25 connector drawing"/>
+    
+    - No counterpart, wired debugging remote connected directly to cable
+    - "Wired dbg remote": connecting the wired debugging remote to the Main Control Board.
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Pin</th>
+                <th>Function</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>Phi_Btn_CW</td>
+                <td>Phi axis debug button for clockwise movement</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>COM5</td>
+                <td>5V (PSU3) common point</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>Z_Btn_UP</td>
+                <td>Z axis debug button for upward movement</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>R_Btn_EXT</td>
+                <td>R axis debug button for extending the arm</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>Theta_Btn_CW</td>
+                <td>Theta axis debug button for clockwise movement</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td>Alpha_Btn_1</td>
+                <td>Alpha axis debug button 1</td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td>COM5</td>
+                <td>5v (PSU3) common point</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td>Beta_Btn_1</td>
+                <td>Beta axis debug button 1</td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td>EE_Srv_1_Btn_1</td>
+                <td>End-effector Servo 1 debug button 1</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td>EE_Srv_2_Btn_1</td>
+                <td>End-effector Servo 2 debug button 1</td>
+            </tr>
+            <tr>
+                <td>11</td>
+                <td>EE_Srv_3_Btn_1</td>
+                <td>End-effector Servo 3 debug button 1</td>
+            </tr>
+            <tr>
+                <td>12</td>
+                <td>COM5</td>
+                <td>5V (PSU3) common point</td>
+            </tr>
+            <tr>
+                <td>13</td>
+                <td>NC</td>
+                <td>Not connected</td>
+            </tr>
+            <tr>
+                <td>14</td>
+                <td>Phi_Btn_CCW</td>
+                <td>Phi axis debug button for counterclockwise movement</td>
+            </tr>
+            <tr>
+                <td>15</td>
+                <td>Z_Btn_DN</td>
+                <td>Z axis debug button for downward movement</td>
+            </tr>
+            <tr>
+                <td>16</td>
+                <td>R_Btn_RET</td>
+                <td>R axis debug button for retracting the arm</td>
+            </tr>
+            <tr>
+                <td>17</td>
+                <td>COM5</td>
+                <td>5V (PSU3) common point</td>
+            </tr>
+            <tr>
+                <td>18</td>
+                <td>Theta_Btn_CCW</td>
+                <td>Theta axis debug button for counterclockwise movement</td>
+            </tr>
+            <tr>
+                <td>19</td>
+                <td>Alpha_Btn_2</td>
+                <td>Alpha axis debug button 2</td>
+            </tr>
+            <tr>
+                <td>20</td>
+                <td>Beta_Btn_2</td>
+                <td>Beta axis debug button 2</td>
+            </tr>
+            <tr>
+                <td>21</td>
+                <td>EE_Srv_1_Btn_2</td>
+                <td>End-effector Servo 1 debug button 2</td>
+            </tr>
+            <tr>
+                <td>22</td>
+                <td>COM5</td>
+                <td>5V (PSU3) comon point</td>
+            </tr>
+            <tr>
+                <td>23</td>
+                <td>EE_Srv_2_Btn_2</td>
+                <td>End-effector Servo 2 debug button 2</td>
+            </tr>
+            <tr>
+                <td>24</td>
+                <td>EE_Srv_3_Btn_2</td>
+                <td>End-effector Servo 3 debug button 2</td>
+            </tr>
+            <tr>
+                <td>25</td>
+                <td>+5V</td>
+                <td>5V (PSU3) supply voltage for wired remote LED</td>
+            </tr>
+        </tbody>
+    </table>
+
+6. P6: Ethernet connector on the back of the Electronics Box for connecting to the ROS PC
+7. P7: USB type-B connector on the back of the Electronics Box, behind a cover, for debugging and programming the Primary Microcontroller (Nucleo)
+8. P8: 5-pole SWD Pin Socket on the back of the Electronics Box, behind a cover, for debugging and programming the Secondary Microcontroller (STM32F0)
+9. P9: standard 3-pole AC power in connector on the back of the Electronics Box
 
 ## Main Control Board schematic
 
