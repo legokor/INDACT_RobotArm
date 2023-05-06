@@ -263,17 +263,17 @@ The table below contains pinout information for the STM32F030K6TX secondary micr
 | PA2 | GPIO_IN | Beta axis Limit switch 1 |
 | PA3 | GPIO_IN | Beta axis Limit switch 2 |
 | PA4 | TIM14_CH1 | Alpha axis stepper motor driver Step PWM control |
-| PA5 | | |
+| PA5 | GPIO_IN | Alpha axis Pushbutton 1 |
 | PA6 | TIM16_CH1 | Beta axis stepper motor driver Step PWM control |
 | PA7 | TIM3_CH2 | Beta axis Encoder B |
 | PA8 | TIM1_CH1 | Alpha axis Encoder A |
 | PA9 | TIM1_CH2 | Alpha axis Encoder B |
 | PA10 | I2C1_SDA | Primary microcontroller (Nucleo) data |
-| PA11 | | |
-| PA12 | | |
+| PA11 | GPIO_IN | Alpha axis Pushbutton 2 |
+| PA12 | GPIO_IN | Beta axis Pushbutton 1 |
 | PA13 | SWDIO | Serial Wire Debug programming |
 | PA14 | SWCLK | Serial Wire Debug programming |
-| PA15 | | |
+| PA15 | GPIO_IN | Beta axis Pushbutton 2 |
 | PB0 | GPIO_OUT | Alpha axis stepper motor driver Direction |
 | PB1 | GPIO_OUT | Alpha axis stepper motor driver Enable |
 | PB2 | does not exist | |
@@ -281,7 +281,7 @@ The table below contains pinout information for the STM32F030K6TX secondary micr
 | PB4 | TIM3_CH1 | Beta axis Encoder A |
 | PB5 | GPIO_OUT | Beta axis stepper motor driver Enable |
 | PB6 | I2C1_SCL | Primary microcontroller (Nucleo) clock |
-| PB7 | | |
+| PB7 |  |  |
 | PF0 | RCC_OSC_IN | External high-speed oscilaltor |
 | PF1 | RCC_OSC_OUT | External high-speed oscillator |
 | BOOT0 | Boot selector | jumper to select between running and programming |
