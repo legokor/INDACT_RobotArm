@@ -19,24 +19,15 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "FreeRTOS.h"
-#include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "usb_device.h"
-
-
-#include <rcl/rcl.h>
-#include <rcl/error_handling.h>
-#include <rclc/rclc.h>
-#include <rclc/executor.h>
-#include <uxr/client/transport.h>
-#include <rmw_microxrcedds_c/config.h>
-#include <rmw_microros/rmw_microros.h>
-
-#include <std_msgs/msg/int32.h>
+#include "queue.h"
+#include "microros_task.h"
+#include "motion_task.h"
+#include "queue_msg_types.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,22 +48,41 @@ typedef StaticTask_t osStaticThreadDef_t;
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-extern USBD_HandleTypeDef hUsbDeviceFS;
+/* Queue Definitions */
+xQueueHandle CommandQueueHandle;
+xQueueHandle StateQueueHandle;
 
-bool cubemx_transport_open(struct uxrCustomTransport * transport);
-bool cubemx_transport_close(struct uxrCustomTransport * transport);
-size_t cubemx_transport_write(struct uxrCustomTransport* transport, const uint8_t * buf, size_t len, uint8_t * err);
-size_t cubemx_transport_read(struct uxrCustomTransport* transport, uint8_t* buf, size_t len, int timeout, uint8_t* err);
 
-void * microros_allocate(size_t size, void * state);
-void microros_deallocate(void * pointer, void * state);
-void * microros_reallocate(void * pointer, size_t size, void * state);
-void * microros_zero_allocate(size_t number_of_elements, size_t size_of_element, void * state);
+/* Definitions for MicrorosTask */
+osThreadId_t MicrorosTaskHandle;
+uint32_t MicrorosTaksBuffer[ 3000 ];
+osStaticThreadDef_t MicrorosTaksControlBlock;
+const osThreadAttr_t MicrorosTask_attributes = {
+  .name = "MicrorosTask",
+  .cb_mem = &MicrorosTaksControlBlock,
+  .cb_size = sizeof(MicrorosTaksControlBlock),
+  .stack_mem = &MicrorosTaksBuffer[0],
+  .stack_size = sizeof(MicrorosTaksBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+/* Definitions for MotionTask */
+osThreadId_t MotionControlTaskHandle;
+uint32_t MotionTaskBuffer[ 128 ];
+osStaticThreadDef_t MotionTaskControlBlock;
+const osThreadAttr_t MotionTask_attributes = {
+  .name = "MotionTask",
+  .cb_mem = &MotionTaskControlBlock,
+  .cb_size = sizeof(MotionTaskControlBlock),
+  .stack_mem = &MotionTaskBuffer[0],
+  .stack_size = sizeof(MotionTaskBuffer),
+  .priority = (osPriority_t) osPriorityHigh,
+};
 
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
-uint32_t defaultTaskBuffer[ 3000 ];
+uint32_t defaultTaskBuffer[ 128 ];
 osStaticThreadDef_t defaultTaskControlBlock;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
@@ -86,11 +96,12 @@ const osThreadAttr_t defaultTask_attributes = {
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
+
+
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
 
-extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /**
@@ -117,6 +128,8 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+	CommandQueueHandle = xQueueCreate(5, sizeof(CommandMsg));
+	StateQueueHandle = xQueueCreate(5, sizeof(StateMsg));
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -142,65 +155,17 @@ void MX_FREERTOS_Init(void) {
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
-  /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN StartDefaultTask */
-  // micro-ROS configuration
+  MicrorosTaskHandle = osThreadNew(MicrorosTaskFunction, NULL, &MicrorosTask_attributes);
 
-    rmw_uros_set_custom_transport(
-      true,
-      (void *) &hUsbDeviceFS,
-      cubemx_transport_open,
-      cubemx_transport_close,
-      cubemx_transport_write,
-      cubemx_transport_read);
+  MotionControlTaskHandle = osThreadNew(MotionTaskFunction, NULL, &MotionTask_attributes);
 
-    rcl_allocator_t freeRTOS_allocator = rcutils_get_zero_initialized_allocator();
-    freeRTOS_allocator.allocate = microros_allocate;
-    freeRTOS_allocator.deallocate = microros_deallocate;
-    freeRTOS_allocator.reallocate = microros_reallocate;
-    freeRTOS_allocator.zero_allocate =  microros_zero_allocate;
-
-    if (!rcutils_set_default_allocator(&freeRTOS_allocator)) {
-        printf("Error on default allocators (line %d)\n", __LINE__);
-    }
-
-    // micro-ROS app
-
-    rcl_publisher_t publisher;
-    std_msgs__msg__Int32 msg;
-    rclc_support_t support;
-    rcl_allocator_t allocator;
-    rcl_node_t node;
-
-    allocator = rcl_get_default_allocator();
-
-    //create init_options
-    rclc_support_init(&support, 0, NULL, &allocator);
-
-    // create node
-    rclc_node_init_default(&node, "cubemx_node", "", &support);
-
-    // create publisher
-    rclc_publisher_init_default(
-      &publisher,
-      &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-      "cubemx_publisher");
-
-    msg.data = 0;
-
-    for(;;)
-    {
-      rcl_ret_t ret = rcl_publish(&publisher, &msg, NULL);
-      if (ret != RCL_RET_OK)
-      {
-        printf("Error publishing (line %d)\n", __LINE__);
-      }
-
-      msg.data++;
-      osDelay(10);
-    }
+  vTaskDelete(defaultTaskHandle);
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
   /* USER CODE END StartDefaultTask */
 }
 
