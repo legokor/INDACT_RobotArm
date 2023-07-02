@@ -1,7 +1,7 @@
 # Ignore all files in the build directory
 build/
 
-# Ignore all files in the .vscode directory except for the arduino.json file
+# Ignore all files in the .vscode directory
 .vscode/
 
 # Ignore all files in the RobotKar_WIFI/cstring_text directory except for warning.txt
