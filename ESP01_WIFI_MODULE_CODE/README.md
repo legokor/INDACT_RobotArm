@@ -30,7 +30,7 @@ The Wi-Fi module is based on the Arduino framework. The following libraries are 
 
 For uploading the firmware to the module, the most convenient way is to use the [Arduino IDE](https://www.arduino.cc/en/software "Arduino IDE"). The Arduino IDE can be used to install the ESP8266 Arduino Core library as well. For the development of the firmware, the [Visual Studio Code](https://code.visualstudio.com/ "Visual Studio Code") editor was used with the [Arduino extension](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.vscode-arduino "Arduino extension for Visual Studio Code").
 
-Before uploading the firmware to the module, the `RobotKar_WIFI/board_configuration.h` file should be edited to match the specific hardware configuration. Furthermore, one of the prebuild scripts (`prebuild.sh`, `prebuild.bat`) should be executed to generate C-string representations of the web interface files. The generated files are used by the firmware to serve the web interface.
+Before uploading the firmware to the module, the `RobotKar_WIFI/board_configuration.h` file should be edited to match the specific hardware configuration. Furthermore, one of the prebuild scripts (`prebuild_scripts/prebuild.sh`, `prebuild_scripts/prebuild.bat`) should be executed to generate C-string representations of the web interface files. The generated files are used by the firmware to serve the web interface.
 
 ## Usage
 
