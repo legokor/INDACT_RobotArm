@@ -15,23 +15,23 @@ using namespace std;
 using namespace ESP8266_Controller;
 
 /** @brief Main HTML page of the GUI. */
-static const char robotkar_gui_main_cstring[] PROGMEM = {
-#include "./cstring_text/robotkar_gui_main_cstring.h"
+static const char robotarm_gui_main_cstring[] PROGMEM = {
+#include "cstring_text/robotarm_gui_main_cstring.h"
 };
 
 /** @brief Back-To-Index page. */
-static const char robotkar_back_to_index_cstring[] PROGMEM = {
-#include "./cstring_text/robotkar_back_to_index_cstring.h"
+static const char robotarm_back_to_index_cstring[] PROGMEM = {
+#include "cstring_text/robotarm_back_to_index_cstring.h"
 };
 
 /** @brief Default data in JSON format. */
 static const char default_data_cstring[] PROGMEM = {
-#include "./cstring_text/default_data_cstring.h"
+#include "cstring_text/default_data_cstring.h"
 };
 
 /** @brief Default configuration in JSON format. */
 static const char default_configuration_cstring[] PROGMEM = {
-#include "./cstring_text/default_configuration_cstring.h"
+#include "cstring_text/default_configuration_cstring.h"
 };
 
 ControllerServer::ControllerServer(char *type_buffer, size_t type_buffer_size, char *parameter_buffer, size_t parameter_buffer_size)
@@ -137,13 +137,13 @@ void ControllerServer::serverSendResponse(WiFiClient &client, RequestType type)
     case RequestType::INDEX:
         // Send the index page
         client.print(F("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"));
-        client.print(FPSTR(robotkar_gui_main_cstring));
+        client.print(FPSTR(robotarm_gui_main_cstring));
         break;
 
     case RequestType::INVALID:
         // Send the bad request page
         client.print(F("HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\n\r\n"));
-        client.print(FPSTR(robotkar_back_to_index_cstring));
+        client.print(FPSTR(robotarm_back_to_index_cstring));
         break;
 
     case RequestType::DATA:
