@@ -151,7 +151,7 @@
                 }
             };
             xhr.onerror = () => {
-                console.log('An error occured while requesting the configuration.');
+                console.log('An error occurred while requesting the configuration.');
             }
             xhr.send();
         }
@@ -229,6 +229,7 @@
 <body>
     <header>
         <h1 id="page_header">Header</h1>
+        <!-- TODO: Use loader animation to indicate that the connection is live and the data is updating. -->
         <div class="loader" id="loader"></div>
     </header>
 
