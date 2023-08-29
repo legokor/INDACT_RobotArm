@@ -27,6 +27,7 @@ For the INDACT project an ESP-01 module is used, while the power supply is provi
 The Wi-Fi module is based on the Arduino framework. The following libraries are used:
 
 - [ESP8266 Arduino Core](https://github.com/esp8266/Arduino "ESP8266 Arduino Core on GitHub")
+- [C++ Standard Library](https://en.cppreference.com/w/cpp/standard_library "C++ Standard Library on cppreference.com")
 
 For uploading the firmware to the module, the most convenient way is to use the [Arduino IDE](https://www.arduino.cc/en/software "Arduino IDE"). The Arduino IDE can be used to install the ESP8266 Arduino Core library as well. For the development of the firmware, the [Visual Studio Code](https://code.visualstudio.com/ "Visual Studio Code") editor was used with the [Arduino extension](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.vscode-arduino "Arduino extension for Visual Studio Code").
 
@@ -38,7 +39,7 @@ Before uploading the firmware to the module, the `RobotKar_WIFI/board_configurat
 
 The web user interface is served from the module itself, as it acts as a web server. The web interface can be accessed from any device that is connected to the same network as the module or directly to the module's Wi-Fi access point.
 
-To see the web interface, open the module's IP address in a web browser. The IP address can be found in the module's serial output or in the router's DHCP client list. The default IP address for the access point is `192.168.4.1`. With the default address, the web interface can be accessed at `http://192.168.0.4/` or `http://192.168.4.1/index`.
+To see the web interface, open the module's IP address in a web browser. The IP address can be found in the module's serial output or in the router's DHCP client list. The default IP address for the access point is `192.168.4.1`. With the default address, the web interface can be accessed at `http://192.168.0.4/` or `http://192.168.4.1/index`. The port number is 80, so it does not have to be specified in the URL.
 
 The web interface provides a control panel for the arm. It was designed to be customizable so that the control interface can be adapted to the specific needs of the user. However, the layout of the control panel is fixed. The control panel consists of the following customizable elements:
 
@@ -67,17 +68,19 @@ Here is an example for the JSON that is used to configure the webpage:
     ],
     "control_table": [
         {
-            "row_label": "button as control 1",
+            "row_label": "control 1",
             "row_control": "<button>button1</button>"
         },
         {
-            "row_label": "button as control 2",
+            "row_label": "control 2",
             "row_control": "<button>button2</button>"
         }
     ],
     "user_script": "some JavaScript code"
 }
 ```
+
+To modify the webpage, edit the `GUI_HTML/robotarm_gui_main.html` file. The webpage is generated from this file. To generate the webpage, one of the prebuild scripts (`prebuild_scripts/prebuild.sh`, `prebuild_scripts/prebuild.bat`) should be executed. The generated webpage is saved in the `RobotArmWifi/cstring_text/robotarm_gui_main_cstring.h` file.
 
 ### II. Web API
 
@@ -99,8 +102,8 @@ The following commands are supported:
 - **`SETUP_ACCESS_POINT`** - Sets up the module as a Wi-Fi access point. Expects no parameter. If the SSID and the password of the access point are not set, the default values are used.
 - **`SSID <SSID>`** - Sets the SSID of the Wi-Fi network. Expects the SSID as a parameter. The SSID can be up to 32 characters long.
 - **`PASSWORD <password>`** - Sets the password of the Wi-Fi network. Expects the password as a parameter. The password must be at least 8 characters long.
-- **`CONFIGURE_LAYOUT <layout>`** - Configures the layout of the web interface. Expects the layout as a parameter. The layout can be up to 1007 characters long. The layout is a JSON string that contains the configuration of the control panel. The layout is described in detail in the [Web user interface](#i-web-user-interface) section.
-- **`UPDATE_DATA <data>`** - Updates the data of the web interface. Expects the data as a parameter. The data can be up to 1012 characters long. The data is a JSON string that contains the data of the control panel. The data is described in detail in the [Web user interface](#i-web-user-interface) section.
+- **`CONFIGURE_LAYOUT <layout>`** - Configures the layout of the web interface. Expects the layout as a parameter. The layout is a JSON string that contains the configuration of the control panel. The layout is described in detail in the [Web user interface](#i-web-user-interface) section.
+- **`UPDATE_DATA <data>`** - Updates the data of the web interface. Expects the data as a parameter. The data is a JSON string that contains the data of the control panel. The data is described in detail in the [Web user interface](#i-web-user-interface) section.
 
 The module can respond with a message frame as well. The response can be either of the following:
 
@@ -108,3 +111,27 @@ The module can respond with a message frame as well. The response can be either 
 - **`FA`** - Error message. This is the response when a command is not recognized or the command was not executed successfully.
 - **`IP <IP address>`** - IP address message. This is the response when the module is connected to a Wi-Fi network. The IP address of the module is sent as a parameter.
 - **`AC <action>`** - Action message. When the module receives an action via the web interface, the action is sent in the form of this message. The action string is sent as the parameter.
+
+An example for the communication between the module and the main controller (set network parameters, then connect to the network):
+
+```text
+   MCU : +_SSID my_network*_
+MODULE : +_OK*_
+   MCU : +_PASSWORD my_password*_
+MODULE : +_OK*_
+   MCU : +_CONNECT_STATION*_
+MODULE : +_OK*_
+MODULE : +_IP 192.168.0.2*_
+```
+
+## Source code
+
+The source code of the Wi-Fi module is located in the `RobotArmWifi` folder.
+
+The code is documented with [Doxygen](https://www.doxygen.nl/index.html "Doxygen website"). The documentation can be generated with the `Doxyfile` configuration file. To generate the documentation with Doxygen, the Doxygen tool is needed. To install Doxygen, visit the [Doxygen website](https://www.doxygen.nl/index.html "Doxygen website").
+
+The documentation can be generated with the following command:
+
+```bash
+doxygen Doxyfile
+```
