@@ -35,38 +35,23 @@ namespace ESP8266_Controller
     class ControllerServer
     {
     private:
-        /** @brief Layout configuration in JSON format. */
         String layoutConfigurationJSON;
-
-        /** @brief Data update in JSON format. */
         String dataUpdateJSON;
 
-        /** @brief Storage for the type of the last request. */
         char *typeBuffer;
-
-        /** @brief Size of the type buffer. */
         size_t typeBufferSize;
-
-        /** @brief Storage for the parameters of the last request. */
         char *parameterBuffer;
-
-        /** @brief Size of the parameter buffer. */
         size_t parameterBufferSize;
 
     public:
         /**
-         * @brief Constructor.
+         * @brief Constructor with static buffer allocation.
          * @param type_buffer Buffer for the type of the request
          * @param type_buffer_size Size of the type buffer
          * @param parameter_buffer Buffer for the parameters of the request
          * @param parameter_buffer_size Size of the parameter buffer
          */
         ControllerServer(char *type_buffer, size_t type_buffer_size, char *parameter_buffer, size_t parameter_buffer_size);
-
-        /**
-         * @brief Destructor.
-         */
-        ~ControllerServer();
 
         /**
          * @brief Extracts the request type and parameters from a given request.
@@ -114,6 +99,7 @@ namespace ESP8266_Controller
          * @return True if the extraction was successful, false otherwise
          */
         bool extractParts(const char *request);
+
     }; /* class Server */
 
 } /* namespace CustomServer */

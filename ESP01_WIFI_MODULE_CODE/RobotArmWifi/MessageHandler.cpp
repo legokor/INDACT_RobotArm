@@ -16,14 +16,8 @@
 using namespace std;
 using namespace ESP8266_Controller;
 
-MessageHandler::MessageHandler(char *receive_buffer, char *message_buffer, size_t buffer_size,
-                               const char begin_marker[], const char end_marker[])
-    : receiveBuffer(receive_buffer), messageBuffer(message_buffer), bufferSize(buffer_size),
-      beginMarker(begin_marker), endMarker(end_marker)
-{
-}
-
-MessageHandler::~MessageHandler()
+MessageHandler::MessageHandler(char *receive_buffer, char *message_buffer, size_t buffer_size)
+    : receiveBuffer(receive_buffer), messageBuffer(message_buffer), bufferSize(buffer_size)
 {
 }
 

@@ -16,9 +16,7 @@
 /**
  * @defgroup message_markers Message markers
  * @brief The symbols that are used to mark the boundaries of a message.
- * @note The begin marker must be 2 characters long.
- * @note The end marker must be 2 characters long.
- * @note The begin marker and the end marker must be different.
+ * @note The markers must be 2 characters long and they need to be different.
  * @{
  */
 #define MESSAGE_BEGIN_MARKER "+_"
@@ -46,14 +44,14 @@
  * @brief Strings that are used to identify the type of a command message.
  * @{
  */
-#define STR_RESET "RS"
-#define STR_SYNCHRONIZE "SYNC"
-#define STR_CONNECT_STATION "CO"
-#define STR_SETUP_ACCESS_POINT "AP"
-#define STR_SSID "SS"
-#define STR_PASSWORD "PS"
-#define STR_CONFIGURE_LAYOUT "CL"
-#define STR_UPDATE_DATA "UD"
+#define STR_RESET "RESET"
+#define STR_SYNCHRONIZE "SYNCHRONIZE"
+#define STR_CONNECT_STATION "CONNECT_STATION"
+#define STR_SETUP_ACCESS_POINT "SETUP_ACCESS_POINT"
+#define STR_SSID "SSID"
+#define STR_PASSWORD "PASSWORD"
+#define STR_CONFIGURE_LAYOUT "CONFIGURE_LAYOUT"
+#define STR_UPDATE_DATA "UPDATE_DATA"
 /** @} */
 
 /**

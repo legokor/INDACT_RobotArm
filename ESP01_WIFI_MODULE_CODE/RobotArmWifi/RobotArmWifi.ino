@@ -67,7 +67,7 @@ WiFiServer wifiServer(80);
 ControllerServer server(serverTypeBuffer, sizeof(serverTypeBuffer), serverParameterBuffer, sizeof(serverParameterBuffer));
 
 /** @brief Instance of the message handler. */
-MessageHandler messageHandler(receiveBuffer, messageBuffer, sizeof(messageBuffer), MESSAGE_BEGIN_MARKER, MESSAGE_END_MARKER);
+MessageHandler messageHandler(receiveBuffer, messageBuffer, sizeof(messageBuffer));
 
 /**
  * @defgroup command_handler_functions Command handler functions
@@ -158,7 +158,7 @@ void loop()
 // /////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * @brief Receives and replys to the incoming messages, if there is a command
+ * @brief Receives and replies to the incoming messages, if there is a command
  *        then executes it.
  */
 void handle_messages(void)
@@ -248,7 +248,7 @@ void resetHandler(const char *data)
 /**
  * @brief Synchronize the ESP8266.
  * @details This function is called when the synchronize command is received from the main
- * controller. The response is sent back to the main controller in the specied format.
+ * controller. The response is sent back to the main controller in the specified format.
  * @param data Unused
  */
 void synchronizeHandler(const char *data)

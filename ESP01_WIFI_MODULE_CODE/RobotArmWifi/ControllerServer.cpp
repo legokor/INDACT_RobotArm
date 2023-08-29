@@ -43,10 +43,6 @@ ControllerServer::ControllerServer(char *type_buffer, size_t type_buffer_size, c
     dataUpdateJSON = FPSTR(default_data_cstring);
 }
 
-ControllerServer::~ControllerServer()
-{
-}
-
 RequestType ControllerServer::matchRequest(const char *request)
 {
     // Separate the request into two parts

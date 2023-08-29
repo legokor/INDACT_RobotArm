@@ -14,6 +14,8 @@
 
 #include <stddef.h>
 
+#include "protocols.h"
+
 namespace ESP8266_Controller
 {
 
@@ -23,46 +25,25 @@ namespace ESP8266_Controller
     class MessageHandler
     {
     private:
-        /** @brief Buffer for the incoming messages. */
         char *receiveBuffer;
-
-        /** @brief Last received message. */
         char *messageBuffer;
-
-        /** @brief Size of the buffers. */
         const int bufferSize;
 
-        /** @brief Begin marker of the message. */
-        const char *beginMarker;
+        const char *beginMarker = MESSAGE_BEGIN_MARKER;
+        const char *endMarker = MESSAGE_END_MARKER;
 
-        /** @brief End marker of the message. */
-        const char *endMarker;
-
-        /** @brief Temporary buffer for the incoming messages. */
         char temp[2];
-
-        /** @brief Flag to indicate if a message has started. */
         bool messageStarted = false;
-
-        /** @brief Index of the message buffer. */
         size_t index;
 
     public:
         /**
-         * @brief Constructor.
+         * @brief Constructor with static buffer allocation.
          * @param receive_buffer Buffer for the incoming messages
          * @param message_buffer Buffer for the last received message
          * @param buffer_size Size of the buffers
-         * @param begin_marker Begin marker of the message
-         * @param end_marker End marker of the message
          */
-        MessageHandler(char *receive_buffer, char *message_buffer, size_t buffer_size,
-                       const char begin_marker[], const char end_marker[]);
-
-        /**
-         * @brief Destructor.
-         */
-        ~MessageHandler();
+        MessageHandler(char *receive_buffer, char *message_buffer, size_t buffer_size);
 
         /**
          * @brief Receive a message from Serial.

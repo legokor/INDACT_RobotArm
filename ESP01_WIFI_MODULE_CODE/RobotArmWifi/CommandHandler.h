@@ -12,6 +12,9 @@
 #ifndef COMMANDHANDLER_H_
 #define COMMANDHANDLER_H_
 
+#include <cstddef>
+#include <cstring>
+#include <string>
 #include <regex>
 
 namespace ESP8266_Controller
@@ -40,26 +43,21 @@ namespace ESP8266_Controller
         /** @brief Array of commands. */
         const Command *commandArray;
         /** @brief Size of the command array. */
-        const size_t arraySize;
+        const std::size_t arraySize;
         /** @brief Regular expression of the command. */
-        std::regex ex_command;
+        std::regex ex_command{"(\\w+)(?: (.*))?"};
         /** @brief Regular expression of the command data. */
-        const Command *lastMatchedCommand = nullptr;
+        const Command *lastMatchedCommand{nullptr};
         /** @brief Last matched command data. */
         std::string lastMatchedCommandData;
 
     public:
         /**
-         * @brief Constructor.
-         * @param command_array Array of commands
+         * @brief Constructor with command array initialization.
+         * @param command_array Pointer to the array of commands
          * @param array_size Size of the command array
          */
-        CommandHandler(const Command command_array[], size_t array_size);
-
-        /**
-         * @brief Destructor.
-         */
-        ~CommandHandler();
+        CommandHandler(const Command *command_array, std::size_t array_size);
 
         /**
          * @brief Check if the message is a command.
@@ -79,7 +77,7 @@ namespace ESP8266_Controller
          * @param index Index of the command
          * @return Pointer to the command
          */
-        const Command *getCommandByIndex(size_t index);
+        const Command *getCommandByIndex(std::size_t index);
 
     }; /* class CommandHandler */
 
