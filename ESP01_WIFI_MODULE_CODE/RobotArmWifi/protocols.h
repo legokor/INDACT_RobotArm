@@ -1,13 +1,11 @@
 /**
- ***************************************************************************************************
  * @file protocols.h
+ * @author Péter Varga (petervarga0018@gmail.com)
+ * @date 2023-08-29
  *
- * @date Feb 01, 2023
- * @author Péter Varga
- ***************************************************************************************************
  * @brief This file contains the protocol messages for the communication between the WiFi module and
- * the controller.
- ***************************************************************************************************
+ *          the controller.
+ * 
  */
 
 #ifndef PROTOCOLS_H_
@@ -16,6 +14,7 @@
 /**
  * @defgroup message_markers Message markers
  * @brief The symbols that are used to mark the boundaries of a message.
+ *
  * @note The markers must be 2 characters long and they need to be different.
  * @{
  */
@@ -26,22 +25,22 @@
 /**
  * @defgroup string_sizes String sizes
  * @brief The sizes of the different strings that are used in the communication between the WiFi
- * module and the controller.
+ *          module and the controller.
+ *
  * @{
  */
 #define MESSAGE_MAX_SIZE 1024
-#define WIFI_STRING_SIZE 32
 /** @} */
 
-/** Number of times that the synchronization code has to be sent on a synchronization attempt. */
-#define SYNC_NUMBER 4
-
-/** The maximum amount of time in milliseconds to wait for a successful connection. */
+/**
+ * @brief The maximum amount of time in milliseconds to wait for a successful connection.
+ */
 #define CONNECT_TIMEOUT_MS 30000
 
 /**
  * @defgroup command_type_strings Command type strings
- * @brief Strings that are used to identify the type of a command message.
+ * @brief Strings that identify the type of a command message.
+ *
  * @{
  */
 #define STR_RESET "RESET"
@@ -56,14 +55,14 @@
 
 /**
  * @defgroup response_type_strings Response type strings
- * @brief Strings that are used to identify the type of a response message.
+ * @brief Strings that identify the type of a response message.
+ *
  * @{
  */
-#define STR_SYNC_CODE "@@"
 #define STR_CONFIRM "OK"
 #define STR_FAIL "FA"
 #define STR_IP "IP"
 #define STR_ACTION "AC"
 /** @} */
 
-#endif /* PROTOCOLS_H_ */
+#endif // PROTOCOLS_H_
