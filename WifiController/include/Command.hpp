@@ -5,15 +5,15 @@
  * @file Command.hpp
  * @author Péter Varga (petervarga0018@gmail.com)
  * @date 2023-08-29
- * 
+ *
  * @brief This file contains the implementation of the Command class.
- * 
+ *
  */
 
 #include <string>
 #include <functional>
 
-namespace robot_arm_wifi
+namespace wifi_controller
 {
 
     /**
@@ -33,7 +33,7 @@ namespace robot_arm_wifi
          * @param command_string String of the command.
          * @param handler Handler function of the command (callback).
          */
-        Command(const std::string &command_string, std::function<void(const std::string &)> handler)
+        Command(const std::string &command_string, const std::function<void(const std::string &)> &handler)
             : commandString(command_string), commandHandler(handler)
         {
         }
@@ -100,13 +100,17 @@ namespace robot_arm_wifi
         }
 
         /**
-         * @brief Execute the command handler function.
+         * @brief Execute the command handler function. This method only calls the command handler function if it is
+         *          already set.
          *
          * @param command_data The command data to be passed to the command handler function.
          */
         void Execute(const std::string &command_data) const
         {
-            this->commandHandler(command_data);
+            if (this->commandHandler)
+            {
+                this->commandHandler(command_data);
+            }
         }
 
         /**
@@ -129,6 +133,6 @@ namespace robot_arm_wifi
 
     }; // class Command
 
-} // namespace robot_arm_wifi
+} // namespace wifi_controller
 
 #endif // COMMAND_HPP_

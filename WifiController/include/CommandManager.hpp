@@ -5,17 +5,18 @@
  * @file CommandManager.hpp
  * @author Péter Varga (petervarga0018@gmail.com)
  * @date 2023-08-29
- * 
+ *
  * @brief This file contains the implementation of the CommandManager class.
- * 
+ *
  */
 
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "Command.hpp"
 
-namespace robot_arm_wifi
+namespace wifi_controller
 {
 
     /**
@@ -33,16 +34,14 @@ namespace robot_arm_wifi
          * @brief Constructor with command array initialization.
          *
          * @param command_array Pointer to the array of commands.
-         * @param array_size Size of the command array. This is the number of commands in the array.
          */
-        CommandManager(const std::vector<Command> &command_array)
+        explicit CommandManager(const std::vector<Command> &command_array)
             : commands(command_array)
         {
         }
 
         /**
-         * @brief Check if the message contains a command and execute the command with the given
-         *          data.
+         * @brief Check if the message contains a command and execute the command with the given data.
          *
          * @param message The message to be checked.
          * @return True if the message is a command, false otherwise.
@@ -62,14 +61,14 @@ namespace robot_arm_wifi
         }
 
         /**
-         * @brief Check if the message contains a command.
+         * @brief Check if the message contains a command and return the matching command and the command data.
          *
          * @param message The message to be checked.
-         * @param command The command that was found. (Output)
-         * @param command_data The data for the execution of the command. (Output)
+         * @param command (Output) The command that has a command string that matches the one found in the message.
+         * @param command_data (Output) The data that is required for the execution of the command.
          * @return True if the message is a command, false otherwise.
          */
-        bool MatchCommand(const std::string &message, Command &command, std::string &command_data) const
+        [[nodiscard]] bool MatchCommand(const std::string &message, Command &command, std::string &command_data) const
         {
             std::string command_string, data_string;
             std::size_t command_end = message.find_first_of(' ');
@@ -84,17 +83,21 @@ namespace robot_arm_wifi
                 data_string = message.substr(command_end + 1);
             }
 
-            for (auto command_local : this->commands)
-            {
-                if (command_local.Match(command_string))
+            auto it = std::find_if(
+                this->commands.begin(), this->commands.end(),
+                [&command_string](const Command &command)
                 {
-                    command = command_local;
-                    command_data = data_string;
-                    return true;
-                }
+                    return command.Match(command_string);
+                });
+
+            if (it == this->commands.end())
+            {
+                return false;
             }
 
-            return false;
+            command = *it;
+            command_data = data_string;
+            return true;
         }
 
         /**
@@ -113,22 +116,19 @@ namespace robot_arm_wifi
          * @param command_string The string representation of the command.
          * @param handler The handler function (callback) for the command.
          */
-        void AddCommand(const std::string &command_string, std::function<void(const std::string &)> handler)
+        void AddCommand(const std::string &command_string, const std::function<void(const std::string &)> &handler)
         {
-            this->AddCommand(Command(command_string, handler));
+            this->commands.push_back(Command(command_string, handler));
         }
 
         /**
          * @brief Add multiple commands to the manager.
-         * 
+         *
          * @param commands The vector of commands to be added.
          */
         void AddCommands(const std::vector<Command> &commands)
         {
-            for (auto command : commands)
-            {
-                this->AddCommand(command);
-            }
+            this->commands.insert(this->commands.end(), commands.begin(), commands.end());
         }
 
         /**
@@ -138,14 +138,16 @@ namespace robot_arm_wifi
          */
         void RemoveCommand(const std::string &command_string)
         {
-            for (auto it = this->commands.begin(); it != this->commands.end(); ++it)
-            {
-                if (it->Match(command_string))
-                {
-                    this->commands.erase(it);
-                    return;
-                }
-            }
+            // This code is based on the erase–remove idiom.
+            // More info: https://en.wikipedia.org/wiki/Erase%E2%80%93remove_idiom
+            this->commands.erase(
+                std::remove_if(
+                    this->commands.begin(), this->commands.end(),
+                    [&command_string](const Command &command)
+                    {
+                        return command.Match(command_string);
+                    }),
+                this->commands.end());
         }
 
     private:
@@ -153,6 +155,6 @@ namespace robot_arm_wifi
 
     }; // class CommandManager
 
-} // namespace robot_arm_wifi
+} // namespace wifi_controller
 
 #endif // COMMANDMANAGER_HPP_

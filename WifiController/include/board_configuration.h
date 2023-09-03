@@ -11,17 +11,17 @@
  */
 
 /**
- * @brief LED pin.
+ * @brief The pin that is connected to the external LED.
  */
 #define EXTERNAL_LED 2
 
 /**
- * @brief LED on level.
+ * @brief The pin level that turns the LED on.
  */
 #define LED_ON LOW
 
 /**
- * @brief LED off level
+ * @brief The pin level that turns the LED off.
  */
 #define LED_OFF HIGH
 

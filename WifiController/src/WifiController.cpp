@@ -16,7 +16,7 @@
 #include "board_configuration.h"
 #include "protocols.h"
 
-namespace robot_arm_wifi
+namespace wifi_controller
 {
 
     WifiController::WifiController()
@@ -49,8 +49,6 @@ namespace robot_arm_wifi
                 this->messageHelper.SendFail();
             }
         }
-
-        this->serverManager.Run();
     }
 
     void WifiController::resetHandler(const std::string &data)
@@ -149,4 +147,4 @@ namespace robot_arm_wifi
         this->messageHelper.SendAction(action);
     }
 
-} // namespace robot_arm_wifi
+} // namespace wifi_controller

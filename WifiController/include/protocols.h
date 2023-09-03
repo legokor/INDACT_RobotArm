@@ -13,8 +13,11 @@
 
 /**
  * @defgroup message_markers Message markers
- * @brief The symbols that are used to mark the boundaries of a message.
- *
+ * @brief These symbols that are used to mark the boundaries of a message.
+ * 
+ * @details These markers form a message frame that is used to identify the beginning and the end
+ *          of a message. The markers are used to synchronize the communication between the WiFi
+ *          module and the main controller.
  * @note The markers must be 2 characters long and they need to be different.
  * @{
  */
@@ -23,11 +26,7 @@
 /** @} */
 
 /**
- * @defgroup string_sizes String sizes
- * @brief The sizes of the different strings that are used in the communication between the WiFi
- *          module and the controller.
- *
- * @{
+ * @brief The maximum size of a message in bytes (characters), excluding the markers.
  */
 #define MESSAGE_MAX_SIZE 1024
 /** @} */
@@ -60,9 +59,9 @@
  * @{
  */
 #define STR_CONFIRM "OK"
-#define STR_FAIL "FA"
+#define STR_FAIL "FAIL"
 #define STR_IP "IP"
-#define STR_ACTION "AC"
+#define STR_ACTION "ACTION"
 /** @} */
 
 #endif // PROTOCOLS_H_

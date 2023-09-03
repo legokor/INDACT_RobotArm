@@ -12,26 +12,34 @@ The module provides a web interface for controlling the arm. The web interface i
 
 ## Hardware requirements
 
-To use the Wi-Fi module, the following hardware is needed:
+This project is designed to work with an ESP8266 Wi-Fi module. Any ESP8266 module can be used, but some modifications may be needed to adapt the project to the specific module. Adaptations can be made in the `include/board_configuration.h` file or the `platformio.ini` file. The module has to be connected to the arm's control board via a serial interface.
 
-- ESP8266 Wi-Fi module
-- Power supply for the Wi-Fi module
-- 2 wires for UART communication with the main control board
+For the INDACT project an ESP-01 module is used. For this particular module, the following hardware components are needed:
+
+- ESP8266 Wi-Fi module: ESP-01
+- Power supply for the Wi-Fi module: 3.3 V; provided by the arm's control board
+- 2 wires for UART communication with the main controller
 - 1 optional LED for status indication
-- Other components needed for the specific Wi-Fi module that is used
-
-For the INDACT project an ESP-01 module is used, while the power supply is provided by the arm's controller board. The module is connected to the control board via a 2-wire UART interface.
+- Resistors for the LED and for pull-up/down of certain pins
 
 ## Software requirements
 
+### Libraries
+
 The Wi-Fi module is based on the Arduino framework. The following libraries are used:
 
-- [ESP8266 Arduino Core](https://github.com/esp8266/Arduino "ESP8266 Arduino Core on GitHub")
 - [C++ Standard Library](https://en.cppreference.com/w/cpp/standard_library "C++ Standard Library on cppreference.com")
+- [ESP8266 Arduino Core](https://github.com/esp8266/Arduino "ESP8266 Arduino Core on GitHub")
+- [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP "ESPAsyncTCP on GitHub")
+- [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer "ESPAsyncWebServer on GitHub")
 
-For uploading the firmware to the module, the most convenient way is to use the [Arduino IDE](https://www.arduino.cc/en/software "Arduino IDE"). The Arduino IDE can be used to install the ESP8266 Arduino Core library as well. For the development of the firmware, the [Visual Studio Code](https://code.visualstudio.com/ "Visual Studio Code") editor was used with the [Arduino extension](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.vscode-arduino "Arduino extension for Visual Studio Code").
+### Development environment
 
-Before uploading the firmware to the module, the `RobotKar_WIFI/board_configuration.h` file should be edited to match the specific hardware configuration. Furthermore, one of the prebuild scripts (`prebuild_scripts/prebuild.sh`, `prebuild_scripts/prebuild.bat`) should be executed to generate C-string representations of the web interface files. The generated files are used by the firmware to serve the web interface.
+For uploading the firmware to the module, the most convenient way is to use the [Arduino IDE](https://www.arduino.cc/en/software "Arduino IDE"). The Arduino IDE can be used to install the ESP8266 Arduino Core library as well. For the development of the firmware, the [Visual Studio Code](https://code.visualstudio.com/ "Visual Studio Code") editor was used with the [PlatformIO IDE extension](https://platformio.org/ "PlatformIO website").
+
+### File system
+
+Note that the module uses the LittleFS file system. Before uploading the firmware, the file system image has to be built and flashed to the device. To manage the file system, follow the instructions here: for [Arduino IDE](https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html#uploading-files-to-file-system "Arduino ESP8266 filesystem documentation") or for [PlatformIO](https://docs.platformio.org/en/latest/platforms/espressif8266.html#uploading-files-to-filesystem "PlatformIO documentation").
 
 ## Usage
 
@@ -39,7 +47,7 @@ Before uploading the firmware to the module, the `RobotKar_WIFI/board_configurat
 
 The web user interface is served from the module itself, as it acts as a web server. The web interface can be accessed from any device that is connected to the same network as the module or directly to the module's Wi-Fi access point.
 
-To see the web interface, open the module's IP address in a web browser. The IP address can be found in the module's serial output or in the router's DHCP client list. The default IP address for the access point is `192.168.4.1`. With the default address, the web interface can be accessed at `http://192.168.0.4/` or `http://192.168.4.1/index`. The port number is 80, so it does not have to be specified in the URL.
+To see the web interface, open the module's IP address in a web browser. The IP address can be found in the module's serial output or in the router's DHCP client list. The default IP address for the access point is `192.168.4.1`. With the default address, the web interface can be accessed at `http://192.168.0.4/`. The port number is 80, so it does not have to be specified in the URL.
 
 The web interface provides a control panel for the arm. It was designed to be customizable so that the control interface can be adapted to the specific needs of the user. However, the layout of the control panel is fixed. The control panel consists of the following customizable elements:
 
@@ -57,7 +65,6 @@ Here is an example for the JSON that is used to configure the webpage:
 {
     "title": "some string",
     "page_header": "some string",
-    "control_table_header": "some string",
     "text_field_top": [
         "paragraph1",
         "paragraph2"
@@ -76,11 +83,16 @@ Here is an example for the JSON that is used to configure the webpage:
             "row_control": "<button>button2</button>"
         }
     ],
-    "user_script": "some JavaScript code"
+    "user_script": "some JavaScript code for handling the button clicks"
 }
 ```
 
-To modify the webpage, edit the `GUI_HTML/robotarm_gui_main.html` file. The webpage is generated from this file. To generate the webpage, one of the prebuild scripts (`prebuild_scripts/prebuild.sh`, `prebuild_scripts/prebuild.bat`) should be executed. The generated webpage is saved in the `RobotArmWifi/cstring_text/robotarm_gui_main_cstring.h` file.
+To modify the webpage, edit the `data/gui_main.html` file. This file contains the HTML, CSS, and JavaScript code of the webpage. The webpage is served from the module's file system. To manage the file system refer to the [File system](#file-system) section.
+
+Here are some example views of the web interface:
+![Web UI on PC with server connected](./images/webui_pc_connected.jpeg "Web UI on PC with server connected")
+![Web UI on PC with server connection error](./images/webui_pc_connection_error.jpeg "Web UI on PC with server connection error")
+![Web UI on mobile with server connected](./images/webui_mobile_connected.jpg "Web UI on mobile with server connected")
 
 ### II. Web API
 
@@ -108,9 +120,9 @@ The following commands are supported:
 The module can respond with a message frame as well. The response can be either of the following:
 
 - **`OK`** - Confirmation message. This is the response when a command is recognized or the command was executed successfully.
-- **`FA`** - Error message. This is the response when a command is not recognized or the command was not executed successfully.
+- **`FAIL`** - Error message. This is the response when a command is not recognized or the command was not executed successfully.
 - **`IP <IP address>`** - IP address message. This is the response when the module is connected to a Wi-Fi network. The IP address of the module is sent as a parameter.
-- **`AC <action>`** - Action message. When the module receives an action via the web interface, the action is sent in the form of this message. The action string is sent as the parameter.
+- **`ACTION <action>`** - Action message. When the module receives an action via the web interface, the action is sent in the form of this message. The action string is sent as the parameter.
 
 An example for the communication between the module and the main controller (set network parameters, then connect to the network):
 

@@ -19,7 +19,7 @@
 #include "MessageHelper.h"
 #include "ServerManager.h"
 
-namespace robot_arm_wifi
+namespace wifi_controller
 {
 
     /**
@@ -41,9 +41,8 @@ namespace robot_arm_wifi
     private:
         std::string ssid;
         std::string password;
-        const std::string DEFAULT_AP_SSID = "RobotArmWifi";
+        const std::string DEFAULT_AP_SSID{"RobotArmWifi"};
 
-        WiFiServer wifiServer{80};
         CommandManager commandManager;
         ServerManager serverManager;
         MessageHelper messageHelper;
@@ -61,6 +60,6 @@ namespace robot_arm_wifi
 
     }; // class WifiController
 
-} // namespace robot_arm_wifi
+} // namespace wifi_controller
 
 #endif // WIFICONTROLLER_H_

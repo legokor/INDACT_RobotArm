@@ -13,7 +13,7 @@
 
 #include <sstream>
 
-namespace robot_arm_wifi
+namespace wifi_controller
 {
     bool MessageHelper::ReceiveMessage(std::string &message)
     {
@@ -91,4 +91,4 @@ namespace robot_arm_wifi
         this->SendMessage(oss.str());
     }
 
-} // namespace robot_arm_wifi
+} // namespace wifi_controller

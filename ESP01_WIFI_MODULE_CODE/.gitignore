@@ -1,8 +1,0 @@
-# Ignore all files in the build directory
-build/
-
-# Ignore all files in the .vscode directory
-.vscode/
-
-# Ignore all files in the RobotArmWifi/cstring_text directory
-RobotArmWifi/cstring_text/

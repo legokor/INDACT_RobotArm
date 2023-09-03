@@ -15,7 +15,9 @@
 #include <string>
 #include <functional>
 
-namespace robot_arm_wifi
+#include <ESPAsyncWebServer.h>
+
+namespace wifi_controller
 {
 
     /**
@@ -29,7 +31,7 @@ namespace robot_arm_wifi
          *
          * @param action_callback The callback function to be called when an action is received.
          */
-        ServerManager(std::function<void(const std::string &)> action_callback);
+        explicit ServerManager(const std::function<void(const std::string &)> &action_callback);
 
         /**
          * @brief Set the layout configuration.
@@ -50,35 +52,23 @@ namespace robot_arm_wifi
          *
          * @param action_callback The callback function to be called when an action is received.
          */
-        void SetActionCallback(std::function<void(const std::string &)> action_callback);
-
-        /**
-         * @brief Run the server.
-         */
-        void Run();
+        void SetActionCallback(const std::function<void(const std::string &)> &action_callback);
 
     private:
-        enum class RequestType
-        {
-            INVALID,
-            INDEX,
-            DATA,
-            CONFIG,
-            ACTION
-        };
-
-        WiFiServer wifiServer{80};
+        AsyncWebServer server{80};
 
         std::string layoutConfiguration;
         std::string dataUpdate;
-        std::string action;
         std::function<void(const std::string &)> actionCallback;
 
-        RequestType MatchRequest(const std::string &request);
-        void SendResponse(WiFiClient &client, RequestType type);
+        void handleIndex(AsyncWebServerRequest *request);
+        void handleConfig(AsyncWebServerRequest *request);
+        void handleData(AsyncWebServerRequest *request);
+        void handleAction(AsyncWebServerRequest *request);
+        void handleNotFound(AsyncWebServerRequest *request);
 
     }; // class ServerManager
 
-} // namespace robot_arm_wifi
+} // namespace wifi_controller
 
 #endif // SERVERMANAGER_H_
