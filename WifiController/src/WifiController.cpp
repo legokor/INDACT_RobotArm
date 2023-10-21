@@ -53,6 +53,7 @@ namespace wifi_controller
 
     void WifiController::resetHandler(const std::string &data)
     {
+        delay(10);
         ESP.reset();
     }
 
