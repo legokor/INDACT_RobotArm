@@ -9,18 +9,18 @@ This document describes the hardware aspect (mechanical construction, power dist
 
 > TODO complete this section with mCAD models and diagrams
 
-The robot arm is constructed from extruded aluminium bars, machined stainless steel plates, aluminium spacer rods, and held together with screws. A vertical profile and a paralel ball screw are mounted on a rotary base, forming the **Z axis** of the arm's movement. A carriage riding on this profile is connected to another, horizontal profile, which forms the **R axis**. The end-effector, currently a 3D-printed mechanical hand with 5 fingers, is attached to one end of the R axis profile.
+The robot arm is constructed from extruded aluminium profiles, machined stainless steel plates, aluminium spacer rods, and held together with screws. A vertical profile and a paralel ball screw are mounted on a rotary base, forming the **Z axis** of the arm's movement. A carriage riding on this profile is connected to another, horizontal profile, which forms the **R axis**. The end-effector, currently a 3D-printed mechanical hand with 5 fingers, is attached to one end of the R axis profile.
 
-The base enables rotary movement (**Phi axis**), realised by a stepper motor and belt-drive. The Z axis movement is realised by a stepper motor, mounted at the upper end of the Z axis profile, driving the ball screw. The R axis movement is realised by a stepper motor mounted on the carriage, driving a studded belt fastened to the R axis profile, similarly to how cheap laser-engravers move. The movement of the fingers is realised by 3 servos inside the palm section of the hand assembly.
+The base enables rotary movement (**Phi axis**), realised by a stepper motor and belt-drive. The Z axis movement is realised by a stepper motor, mounted at the upper end of the Z axis profile, driving the ball screw. The R axis movement is realised by a stepper motor mounted on the carriage, driving a studded belt fastened to the R axis profile, similarly to how some laser-engravers and 3D printers move. The movement of the fingers is realised by 3 servos inside the palm section of the hand assembly.
 
-We plan to extend the arm's movement capabilities by introducing up to 3 more degrees of freedom through a wrist assembly that would enable tilting (Alpha, Beta axes) and rotation (Theta axis) of the end-effector.
+We plan to extend the arm's movement capabilities by introducing up to 3 more degrees of freedom through a wrist assembly that would enable tilting (Alpha, Beta axes) and rotation (Theta axis) of the end-effector. A possible upgrade to interchangeable, MODBUS-based smart end-effectors is also planned.
 
 # Power distribution
 
-The arm is powered from the European power grid (**single-phase 230V 50Hz AC**) through the Electronics Box. This cabinet is equipped with a RCD, circuit breaker, mains switch, and 3 separate, galvanically isolated switch-mode AC-to-DC power supplies:
+The arm is powered from the European power grid (**single-phase 230V 50Hz AC**) through the Electronics Box. This enclosure is equipped with a RCD, circuit breaker, mains switch, and 3 separate, galvanically isolated switch-mode AC-to-DC power supplies:
 
 * **PSU1** supplies +24V DC to the stepper motor drivers, is sized to continuously withstand the high currents the motors draw, and wired directly to the motor drivers in the Electronics Box.
-* **PSU2** supplies +24V DC to the control electronics, for long distance signal wiring, powering a cooling fan, and optical isolation. This 24V power line is routed through the Main Control Board and auxiliary control boards. The auxiliary control boards create their own 5V power with switch-mode 24VDC-to-5VDC Buck converters.
+* **PSU2** supplies +24V DC to the control electronics, for long distance signal wiring, powering a cooling fan, and optical isolation. This 24V power line is routed through the Main Control Board and auxiliary control boards. The auxiliary control boards derive their own 5V power from PSU2 with switch-mode 24VDC-to-5VDC Buck converters.
 * **PSU3** supplies +5V DC to the control electronics, to power digital control and measurement circuitry. This 5V power line is routed through the Main Control Board. The Main Control Board creates a 3.3V supply rail for logic-level circuitry with a 5V-to-3V3 Low-Dropout linear regulator (LDO).
 
 The **Emergency Stop** (ESTOP) button breaks the PSU1 24V circuit, but not 5V, so the ESTOP event can be logged by the control logic.
@@ -33,19 +33,19 @@ The diagram below shows how power is distributed.
 
 ## The main microcontroller
 
-The arm is mainly controlled and programmed through **ROS** (the Robot Operating System) running on a PC connected via Ethernet. Direct control is possible from a remote connected over Wifi, a LeapMotion sensor and application also connected over Wifi, or a wired remote (for debugging and tesing purposes).
+The arm is mainly controlled and programmed through **ROS** (the Robot Operating System) running on a PC or laptop connected via Ethernet to the Electronics Box. Direct control is possible from a remote (or smartphone web GUI) connected over Wifi, a LeapMotion sensor and application also connected over Wifi, or a wired remote (for debugging and tesing purposes).
 
 An **STM32F7**46ZG microcontroller running **micro-ROS** firmware (located on a **Nucleo-F746** development board, connected to the Main Control Board via pin headers) performs low-level control and telemetry data collection:
 
-* Communicates with the **PC over Ethernet**
+* Communicates with the **host PC over Ethernet**
 * Controls the **motor drivers** for the Phi, R, Z (and optionally Theta) axes
 * Controls the current, hand-like  **end-effector's servos**
 * Measures and reports the movement speed and position of the arm, through **limit switches, position sensing gates and motor encoders**
 * Communicates with the Wifi remote through an **ESP-01 Wifi module**
 * Handles **Emergency Stop** events, the **Electronics Box being opened** during operation, or a limit switch being triggered, and stops the arm according to the given rules
-* Regulates the temperature of the Electronics Box through a **fan and a temperature sensor**
+* Regulates the temperature of the Electronics Box through two **fans and a temperature sensor**
 * Communicates with any future smart end-effector over **MODBUS** (TIA/EIA-485)
-* Handles the **wired remote**
+* Handles the **wired remote** button inputs.
 * Displays status and error messages on a 2x16 **character lCD**
 * Provides additional expansion capability through **SPI and GPIO** ports
 
@@ -55,23 +55,23 @@ Detailed information (including datasheet) about the microcontroller can be foun
 
 ## Peripherals
 
-* The STM32F7 microcontroller can only read 4 separate encoders, so for complete and precise control in 6 degrees of freedom, an additional Cortex-M0-based, smaller microcontroller may be soldered directly to the Main Control Board, to extend the timer capabilities of the Nucleo, and thus control the planned **Alpha and Beta axes**, and report back their position and speed. This microcontroller communicates with the Nucleo over SPI. For this task, the **STM32F030K6Tx** microcontroller was selected. It is readily available, affordable, and has enough peripherals for controlling 2 motors.
+* The STM32F7 microcontroller can only read 4 separate encoders (due to timer limitations), so for complete and precise control in 6 degrees of freedom, an additional Cortex-M0-based, smaller microcontroller may be soldered directly to the Main Control Board, to extend the timer capabilities of the Nucleo, and thus control the planned **Alpha and Beta axes**, and report back their position and speed. This microcontroller communicates with the Nucleo over I2C. For this task, the **STM32F030K6Tx** microcontroller was selected. It is readily available, affordable, and has enough peripherals for controlling 2 motors.
 * The Wifi remote and LeapMotion application connect over Wifi to an ESP-01 Wifi module, connected to the Nucleo over a full-duplex serial (UART) connection (and 4 additional GPIO control signals).
 * The wired remote features one pushbutton for each direction of each axis and servo, up to 18 in total, pulling a corresponding GPIO input to ground.
 * All axes feature limit switches to prevent movement outside the safe operating movement range. These are all connected to correspoding GPIO pins.
-* Some axes feature additional position sensing gates to aid the robot in determining its position. These are all connected to corresponding GPIO pins.
+* Some axes feature additional position sensing gates to aid the robot in determining its position and define a home position. These are all connected to corresponding GPIO pins.
 * The Nucleo development board features built-in Ethernet and USB-OTG connectivity, 3 programmable LED outputs, 2 pushbutton inputs, and JTAG and ST-LINK programming interfaces.
 * Each axis requires a motor driver (located in the Electronics Box), which are controlled with Step, Direction and Enable signals for each. Direction and Enable signals are simple GPIO outputs, but Step signals need to be generated with timers, preferably a separate timer for each axis. The steper motors connect directly to the motor drivers.
 * The 3 servos of the end-effector are controlled by PWM signals, one each. These can be from the same timer.
 * All axes feature encoders to accurately measure the rotational speed and angle of the motors. These require 2 channels of an encoder-compatible timer each.
-* The Electronics Box cooling fan is PWM-controlled through a MOSFET, and thus requires one channel of any one timer.
-* The character LCD module is connected to the Nucleo over a 11-pin paralel GPIO interface, and its backlight LED is PWM-controlled through a MOSFET (also reuiring one channel of any one timer).
+* The Electronics Box cooling fans are PWM-controlled through a MOSFET, and thus require one channel of any one timer.
+* The character LCD module is connected to the Nucleo over a 11-pin paralel GPIO interface, and its backlight LED is PWM-controlled through a MOSFET (also requiring one channel of any one timer).
 * The Electronics Box internal temperature is measured with a BME-280 temperature sensor, connected to the Nucleo over I2C.
 * The ESTOP button, and the switch detecting the Electronics Box being open, both pull one GPIO pin each to ground.
-* For intercompatibility with future smart end-effectors, a MODBUS (TIA/EIA-485, full-duplex differential UART) link is provided from the Nucleo.
+* For intercompatibility with future smart end-effectors, a MODBUS (TIA/EIA-485, full-duplex differential UART) link is provided from the Nucleo, through a TIA/EIA-485 transceiver.
 
 For better signal integrity, electrical safety, reliability and ESD-protection, all low-current signals travelling long distances (encoders, position sensing gates, limit switches, end-effector servos) are optically isolated on both ends, and shifted to 24V levels.
-The MODBUS link does not require optical isolation, as it uses a shielded, impedance-controlled, duplex differential twisted pair trunk cable terminated on both ends, operating at 5V line levels, and all devices on it connect via line driver buffers. This works well in the industry for distances over kilometers long, and rather noisy environments. More info can be found [here](https://modbus.org/docs/Modbus_over_serial_line_V1_02.pdf "MODBUS over Serial documentation")
+The MODBUS link does not require optical isolation, as it uses a shielded, impedance-controlled, duplex differential twisted pair trunk cable terminated on both ends, operating at 5V line levels, and all devices on it connect via line driver buffers (TIA/EIA-485 transceivers). This works well in the industry for distances over kilometers long, and rather noisy environments. More info can be found [here](https://modbus.org/docs/Modbus_over_serial_line_V1_02.pdf "MODBUS over Serial documentation")
 
 The diagram below shows how control signals and peripherals are connected.
 
@@ -251,7 +251,7 @@ The table below contains pinout information for the STM32F746 Nucleo board.
 * The Phi, Z, R axis limit switches use GPIO pins PD0-PD1, PD3-PD4, PD5-PD6, respectively, as inputs, with internal pull-up.
 * The Phi axis stepper motor driver uses TIMER10, CH1 for its Step (PWM) signal, and GPIO pins PB4, PB6, respectively, for its Direction and Enable signals. The Z axis stepper motor driver uses TIMER9, CH1 for its Step (PWM) signal, and GPIO pins PE7, PE8 for its Direction and Enable signals. The R axis stepper motor driver uses TIMER9, CH2 for its Step (PWM) signal, and GPIO pins PE10, PE12 for its Direction and Enable signals. The planned Theta (wrist rotation) axis stepper motor driver uses TIMER11, CH1 for its Step (PWM) signal, and GPIO pins PG14 and PG15 for its Direction and Enable signals.
 * The expansion SPI interface is SPI3, in full-duplex Master mode, with hardware NSS output.
-* The wired remote (one pushbutton for each direction of each axis) uses GPIO pins PA5 (Phi CCW), PA15 (Phi CW), PB1 (Z up), PB11 (Z down), PB12 (R out), PB15 (R in), PC2 (Theta CCW), PC3 (Theta CW), PC8 (Servo 1 curl), PC9 (Servo 1 straighten), PD10 (Servo 2 curl), PD11 (Servo 2 straighten), PD14 (Servo 3 curl), PD15 (Servo 3 straighten), as inputs, with internal pull-up.
+* The wired remote (one pushbutton for each direction of each axis) uses GPIO pins PA5 (Phi CCW), PA15 (Phi CLW), PB1 (Z up), PB11 (Z down), PB12 (R extend), PB15 (R retract), PC2 (Theta CCW), PC3 (Theta CLW), PC8 (Servo 1 curl), PC9 (Servo 1 straighten), PD10 (Servo 2 curl), PD11 (Servo 2 straighten), PD14 (Servo 3 curl), PD15 (Servo 3 straighten), as inputs, with internal pull-up.
 * The rest of the GPIO pins (PC0, PD7, PE4, PE15, PF2, PF3, PF4, PG8, PG9, PG12) are routed to connectors on the Main Control Board, for the possibility of future expansion.
 
 The table below contains pinout information for the STM32F030K6TX secondary microcontroller.
@@ -293,7 +293,7 @@ The electronics operating the arm are categorised by location as follows:
 
 1. The Electronics Box
     1. Mains voltage circuitry
-        * Mains power connector
+        * Mains power input connector
         * RCD
         * 6A circuit breaker
         * Mains power switch
@@ -310,68 +310,76 @@ The electronics operating the arm are categorised by location as follows:
 
             > All stepper drivers have optically isolated Step (PUL+), Direction (DIR+), Enable (ENA+) inputs referencing PSU3 common point (PUL-, DIR-, ENA-); Stepper motor A+, A-, B+, B- connections; and 24V power connections (directly wired to PSU1).
 
-        * Space for planned Theta, Alpha, Beta axes motor drivers (BLDC or stepper)
+        * Empty space for planned Theta, Alpha, Beta axes motor drivers (BLDC or stepper)
     3. The Main Control Board
         * Nucleo-F746 development board {Nucleo-morpho pin header}
-        * secondary STM32F030K6TX microcontroller and related circuitry (capacitors, crystal oscillators, SWD programming, Boot configuration, etc.) {optionally soldered on when Alpha and Beta axes are implemented}
+        * secondary STM32F030K6TX microcontroller and related circuitry (capacitors, crystal oscillators, SWD programming (P08), Boot configuration, etc.) {optionally soldered on when Alpha and Beta axes are implemented}
         * 5V to 3.3V Low-Dropout (LDO) linear regulator
         * Filtering and decoupling ceramic capacitors, bulk decoupling electrolytic capacitors
         * ESD protection
-        * MODBUS differential line buffer (SN75LBC179AD) and termination with pull-up and pull-down resistors and grounded shielding, Rx and Tx routed as impedance-controlled diff. pairs {DB-9 serial connector}
+        * MODBUS differential line buffer (SN75LBC179AD) and termination with pull-up and pull-down resistors and grounded shielding, Rx and Tx routed as impedance-controlled diff. pairs {P04a, DB-9 serial connector}
         * ESP-01 Wifi module (3.3V power, UART, GPIO2 connected through a blue LED and series resistor to ground, GPIO0 connected through an 1k resistor to 3.3V supply) {2x4 pin header}
         * BME-280 temperature sensor module (3.3V power, I2C) {1x4 pin header}
         * 2x16 character LCD module (3.3V power, 11-wire paralel interface, contrast setting with trimmer potentiometer between 3.3V and ground, backlight LED PWM-controlled through N-channel MOSFET and series resistor) {1x16 pin header}
-        * N-channel MOSFET to PWM-control cooling fan, {2-pin fan header}
-        * LTV847 quad optocouplers for slower signals, and SFH6345 digital optocouplers for PWM and fast signals
-        * Screw terminals for power input (24V, COM_PSU2, 5V, COM_PSU3), ESTOP (COM_PSU3, GPIO), Electronics Box door switch (COM_PSU3, GPIO), motor driver control signals (6x3 + COM_PSU3)
-        * DB-25 connector to wired remote (18 GPIOs, 7x COM_PSU3)
-        * Connection to Aux Control Board 1 (3 encoders, 4 limit switches, 1 position sensing gate, 24V, COM_PSU2) and Aux. Control Board 2 (3 encoders, 8 limit switches, 1 position sensing gate, 3 servos, 24V, COM_PSU2) (DB-37 connector for sensors, the servos are spliced into the MODBUS DB-9 connector since they are not both used at the same time)
+        * N-channel MOSFET to PWM-control cooling fans, {two 2-pin fan headers wired in paralel}
+        * SFH6345 digital optocouplers for limit switch, encoder, position gate, and end-effector servo PWM signals
+        * Screw terminals for power input (24V, COM_PSU2, 5V, COM_PSU3), ESTOP (COM_PSU3, GPIO), Electronics Box door switch (COM_PSU3, GPIO), motor driver control signals (6x3 GPIO + 6x COM_PSU3)
+        * P05a DB-25 connector to wired remote (18 GPIOs, 7x COM_PSU3)
+        * Conenction to Aux Control Boards and smart end-effector (detailed in section 2 of this list) (24V power, encoder, limit switch, position gate GPIOs, servo PWM signals, MODBUS) (P03a DB-37 connector for sensor signals, PSU2 24V power and COM_PSU2; P04a DB-9 connector for MODBUS and servos)
     4. Other miscellania
-        * Cooling fan(s)
-        * Door switch
+        * 2 cooling fans wired in paralel
+        * Electronics Box lid open switch
         * ESTOP button
-        * Mains power connector
-        * USB and Externet extensions for the Nucleo
-        * DB-25 connectors for the stepper motor connections
+        * status LCD (2x16 character)
+        * Mains power connector (P9)
+        * USB and Externet connectors of the Nucleo (P06, P07)
+        * P01a, P02a DB-25 connectors for the stepper motor connections
         * Mounting hardware
-2. Mounted on (or near) Z axis
-    1. Aux. Control Board 1: mounted on the back of the Z axis profile approx. in the middle
+3. Mounted in the robot arm base
+    1. Aux. Control Board 1: mounted inside the robot arm base
         * 24V to 5V Buck converter and 5V to 3.3V LDO, LED indicator
         * decoupling capacitors
-        * Optocouplers
-        * connectors to Phi, R and Z axis encoders, Phi and Z axis limit switches, Z axis position sensing gate
-        * connector to Main Cntrol Board (DB-15)
+        * SFH6345 optocouplers for Phi axis encoder (2x), Phi axis limit switch (2x), Phi axis position gate (1x) signals
+        * connection to Phi axis encoder, Phi axis limit switches, Phi axis position gate (vertical pin headers)
+        * connection to Aux. Control Board 2 (P10a, DB-15 socket) and Aux. Control Board 3 (P11a, DB-25 socket)
+        * connection to Electronics Box (P03d, DB-37 pin)
+2. Mounted near the Z axis profile
+    1. Aux. Control Board 2: mounted on the back of the Z axis profile approx. in the middle
+        * 24V to 5V Buck converter and 5V to 3.3V LDO, LED indicator
+        * decoupling capacitors
+        * SFH6345 optocouplers for Z axis encoder (2x), Z axis limit switch (2x), Z axis position gate (1x), R axis encoder (2x) signals
+        * connection to Z axis encoder, Z axis limit switches, Z axis position sensing gate, R axis encoder (horizontal pin headers)
+        * connector to Aux. Control Board 1 (P10d, DB-15 pin)
     2. Z axis stepper motor + Z axis encoder
-    3. Phi axis stepper motor + Phi axis encoder
     4. R axis stepper motor + R axis encoder
     5. Z axis limit switches and position gate
-    6. Phi axis limit switches
-3. Mounted on (or near) R axis
-    1. Aux. Control Board 2: mounted on the fron of the R axis profile towards the end-effector
+    6. Wiring harness and plastic cable guide
+3. Mounted near the R axis profile
+    1. Aux. Control Board 3: mounted on the front of the R axis profile towards the end-effector
         * 24V to 5V Buck converter and 5V to 3.3V LDO, LED indicator
         * decoupling capacitors
-        * Optocouplers
-        * connectors to end-effector servos, Alpha, Beta and Theta axis encoders, R, Alpha, Beta and Theta axis limit switches, R axis position gate (pin headers)
-        * MODBUS termination (without pull-up and pull-down resistors and shield connection), line driver, DB-9 connector input (with servos), output to end-effector also DB-9 connector (original MODBUS)
-        * connector to Main Control Board (DB-25 and MODBUS+servo DB-9)
+        * SFH6345 optocouplers for R axis limit switch (2x), R axis position gate (1x), Theta axis encoder (2x), Theta axis limit switch (2x), Theta axis position gate (1x), Alpha axis encoder (2x), Alpha axis limit switch (2x), Beta axis encoder (2x), Beta axis limit switch (2x), End-effector servo PWM (3x) signals
+        * connection to end-effector servos, Alpha, Beta and Theta axis encoders, R, Alpha, Beta and Theta axis limit switches, R axis position gate (horizontal pin headers)
+        * MODBUS termination (without pull-up and pull-down resistors and shield connection), line driver (TIA/EIA-485 transceiver), P04f DB-9 pin connector input (with servos), output to end-effector P13 DB-9 socket connector (original MODBUS)
+        * connector to Aux. Control Board 1 (P11d, DB-25 pin)
     2. R axis limit switches and position gate
     3. Alpha, Beta and Theta axis motors (planned), with encoders and limit switches
-    4. The end-effector
+    4. Wiring harness and platic cable guide on the back
+    5. End-effector mount
 
-The Main Control Board is designed with Altium Designer. The Auxiliary Control Boards are designed with KiCAD as one board, manufactured together, and separated later along the perforated edge. All boards are assembled in-house by project members.
+The Main Control Board and Auxiliary Control Boards are designed in KiCAD. The Main Control Board is designed and manufactured as a 4-layer PCB. The Aux. Control Boards are designed and manufactured together as a single, 2-layer, perforated PCB, and separated later along the perforated edge. All boards are assembled and tested in-house by project members.
 
 Connector pinouts are marked on boards, and most connectors used can only be connected in the correct orientation.
 
 ## Connector pinouts
 
-> All pinout drawings show the plug, viewed head-on from the receptacle.
+> All pinout drawings show the pin (male) variant, viewed head-on from the socket-facing side.
 
-1. P1a: DB-25 connector on the back of the Electronics Box, color-coded <span style="color: red">**RED**</span>.
+1. P01a: DB-25 socket connector on the back of the Electronics Box, color-coded <span style="color: red">**RED**</span>.
     <img src="./db25.png" width=142 height=50 alt="DB-25 connector drawing"/>
     
-    - Counterpart (P1b) on the base of the robot
+    - Counterparts P01b is a DB-25 pin connector on the red motor cable, P01c is a DB-25 socket connector on the other end of the red motor cable, and P01d is a DB-25 pin connector in the robot arm base (near Phi axis), from which the motor connections to the Phi, Z, R axes are directly wired.
     - "Main motors": connecting R, Z and Phi axis stepper motors to their motor drivers
-    - The motor wires break out from P1b through screw terminals in the base of the robot.
     
     <table>
         <thead>
@@ -486,12 +494,11 @@ Connector pinouts are marked on boards, and most connectors used can only be con
         </tbody>
     </table> 
 
-2. P2a: DB-25 connector on the back of the Electronics Box, color-coded <span style="color: saffron">**YELLOW**</span>.
+2. P02a: DB-25 socket connector on the back of the Electronics Box, color-coded <span style="color: saffron">**YELLOW**</span>.
     <img src="./db25.png" width=142 height=50 alt="DB-25 connector drawing"/>
     
-    - Counterpart (P2b) on the base of the robot
+    - Counterparts P02b is a DB-25 pin connector on the yellow motor cable, P02c is a DB-25 socket connector on the other end of the yellow motor cable, and P02d is a DB-25 pin connector in the robot arm base (near Phi axis), from which the motor connections to the Theta, Alpha, Beta axes are directly wired.
     - "Wrist motors": connecting the planned Alpha, Beta and Theta axis stepper motors to their motor drivers
-    - The motor wires break out from P2b through screw terminals in the base of the robot.
     
     <table>
         <thead>
@@ -606,12 +613,11 @@ Connector pinouts are marked on boards, and most connectors used can only be con
         </tbody>
     </table>
 
-3. P3a: DB-37 connector on the back of the Electronics Box, color-coded <span style="color: blue">**BLUE**</span>.
+3. P03a: DB-37 socket connector on the back of the Electronics Box, color-coded <span style="color: blue">**BLUE**</span>.
     <img src="./db37.png" width=190 height=50 alt="DB-37 connector drawing"/>
     
-    - Counterpart (P3b) on the base of the robot
-    - "Robot sensors": connecting the encoder, limit switch, and position sensing gate connections, as well as +24V and COM of the Auxiliary Control Boards to the Main Control Board.
-    - The sensor and 24V power wires break out from P3b to a DB-15 connector (Aux. Control Board 1) and DB-25 connector (Aux. Control Board 2)
+    - Counterparts P03b is a DB-37 pin connector on the blue signal cable, P03c is a DB-37 socket connector on the other end of the blue signal cable, and P03d is a DB-37 pin connector on Aux. Control Board 1, located in the robot arm base (near the Phi axis).
+    - "Robot sensors": connecting the encoder, limit switch, and position sensing gate connections, as well as +24V and COM_PSU2 of the Auxiliary Control Boards to the Main Control Board.
     
     <table>
         <thead>
@@ -664,18 +670,18 @@ Connector pinouts are marked on boards, and most connectors used can only be con
             </tr>
             <tr>
                 <td>9</td>
-                <td>Phi_LimSw_1</td>
-                <td>Phi axis limit switch 1</td>
+                <td>Phi_LIM_CCW</td>
+                <td>Phi axis limit switch (counterclockwise)</td>
             </tr>
             <tr>
                 <td>10</td>
-                <td>Z_LimSw_1</td>
-                <td>Z axis limit switch 1 (top)</td>
+                <td>Z_LIM_UP</td>
+                <td>Z axis limit switch (top)</td>
             </tr>
             <tr>
                 <td>11</td>
-                <td>R_LimSw_1</td>
-                <td>R axis limit switch 1 (EE side)</td>
+                <td>R_LIM_MIN</td>
+                <td>R axis limit switch (EE side, minimum R)</td>
             </tr>
             <tr>
                 <td>12</td>
@@ -684,17 +690,17 @@ Connector pinouts are marked on boards, and most connectors used can only be con
             </tr>
             <tr>
                 <td>13</td>
-                <td>Theta_LimSw_1</td>
-                <td>Theta axis limit switch 1</td>
+                <td>Theta_LIM_CCW</td>
+                <td>Theta axis limit switch (counterclockwise)</td>
             </tr>
             <tr>
                 <td>14</td>
-                <td>Alpha_LimSw_1</td>
+                <td>Alpha_LIM_1</td>
                 <td>Alpha axis limit switch 1</td>
             </tr>
             <tr>
                 <td>15</td>
-                <td>Beta_LimSw_1</td>
+                <td>Beta_LIM_1</td>
                 <td>Beta axis limit switch 1</td>
             </tr>
             <tr>
@@ -754,8 +760,8 @@ Connector pinouts are marked on boards, and most connectors used can only be con
             </tr>
             <tr>
                 <td>27</td>
-                <td>Phi_LimSw_2</td>
-                <td>Phi axis limit switch 2</td>
+                <td>Phi_LIM_CLW</td>
+                <td>Phi axis limit switch (clockwise)</td>
             </tr>
             <tr>
                 <td>28</td>
@@ -764,22 +770,22 @@ Connector pinouts are marked on boards, and most connectors used can only be con
             </tr>
             <tr>
                 <td>29</td>
-                <td>Z_LimSw_2</td>
-                <td>Z axis limit switch 2 (bottom)</td>
+                <td>Z_LIM_DN</td>
+                <td>Z axis limit switch (bottom)</td>
             </tr>
             <tr>
                 <td>30</td>
-                <td>R_LimSw_2</td>
-                <td>R axis lmit switch 2 (empty side)</td>
+                <td>R_LIM_MAX</td>
+                <td>R axis lmit switch (blank end, maximum R)</td>
             </tr>
             <tr>
                 <td>31</td>
-                <td>Theta_LimSw_2</td>
-                <td>Theta axis limit switch 2</td>
+                <td>Theta_LIM_CLW</td>
+                <td>Theta axis limit switch (clockwise)</td>
             </tr>
             <tr>
                 <td>32</td>
-                <td>Alpha_LimSw_2</td>
+                <td>Alpha_LIM_2</td>
                 <td>Alpha axis lmit switch 2</td>
             </tr>
             <tr>
@@ -789,7 +795,7 @@ Connector pinouts are marked on boards, and most connectors used can only be con
             </tr>
             <tr>
                 <td>34</td>
-                <td>Beta_LimSw_2</td>
+                <td>Beta_LIM_2</td>
                 <td>Beta axis lmit switch 2</td>
             </tr>
             <tr>
@@ -810,12 +816,11 @@ Connector pinouts are marked on boards, and most connectors used can only be con
         </tbody>
     </table>
 
-4. P4a: DB-9 connector on the back of the Electronics Box, color-coded <span style="color: green">**GREEN**</span>.
+4. P04a: DB-9 socket connector on the back of the Electronics Box, color-coded <span style="color: green">**GREEN**</span>.
     <img src="./db9.png" width=67 height=50 alt="DB-9 connector drawing"/>
     
-    - Counterpart (P2b) on the base of the robot
-    - "End-effector": MODBUS conenction for future smart end-effectors, and 3 servo PWM connections for the current end-effector
-    - P2b is connected to Aux. Control Board 2 directly through a DB-9 extension.
+    - Counterparts P04b is a DB-9 pin connector on the green end-effector cable, P04c is a DB-9 socket connector on the other end of the green end-effector cable, P04d is a DB-9 pin connector on the end of the robot arm end-effector cable (mounted in the robot arm base, near the Phi axis), P04e is a DB-9 socket connector on the other end of the robot arm end-effector cable, P04f is a DB-9 pin connector on Aux. Control Board 3 in the MODBUS section.
+    - "End-effector": MODBUS conenction for future smart end-effectors, 5V power and COM_PSU3, and 3 servo PWM connections for the current end-effector
     
     <table>
         <thead>
@@ -874,10 +879,10 @@ Connector pinouts are marked on boards, and most connectors used can only be con
         </tbody>
     </table>
 
-5. P5a: DB-25 connector on the front of the Electronics Box, color-coded **WHITE**.
+5. P05a: DB-25 pin connector on the front of the Electronics Box, color-coded **WHITE**.
     <img src="./db25.png" width=142 height=50 alt="DB-25 connector drawing"/>
     
-    - No counterpart, wired debugging remote connected directly to cable
+    - Counterpart P05b is a DB-25 socket connector on the end of the white wired remote cable. The other end of this cable is soldered to the wired remote.
     - "Wired dbg remote": connecting the wired debugging remote to the Main Control Board.
     
     <table>
@@ -1017,10 +1022,243 @@ Connector pinouts are marked on boards, and most connectors used can only be con
         </tbody>
     </table>
 
-6. P6: Ethernet connector on the back of the Electronics Box for connecting to the ROS PC
-7. P7: USB type-B connector on the back of the Electronics Box, behind a cover, for debugging and programming the Primary Microcontroller (Nucleo)
-8. P8: 5-pole SWD Pin Socket on the back of the Electronics Box, behind a cover, for debugging and programming the Secondary Microcontroller (STM32F0)
-9. P9: standard 3-pole AC power in connector on the back of the Electronics Box
+6. P06: Ethernet connector of Nucleo on the back of the Electronics Box for connecting to the ROS host PC to the Nucleo
+7. P07: USB type-B connector of Nucleo on the back of the Electronics Box, behind a cover, for debugging and programming the Primary Microcontroller (Nucleo)
+8. P08: 6-pole SWD Pin Socket on the back of the Electronics Box, behind a cover, for debugging and programming the Secondary Microcontroller (STM32F0)
+9. P09: standard 3-pole AC power in connector on the back of the Electronics Box
+10. P10a: DB-15 socket connector on Aux. Control Board 1
+    <img src="./db15.png" width=142 height=50 alt="DB-15 connector drawing"/>
+
+    - Counterpart P10b is a DB-15 pin connector on the robot arm Aux. Control Board 2 cable, P10c is a DB-15 socket connector on the other end of the Aux. Control Board 2 cable, P10d is a DB-15 pin connector on Aux. Control Board 2
+
+    <table>
+        <thead>
+            <tr>
+                <th>Pin</th>
+                <th>Function</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>Z_ENC_A</td>
+                <td>Z axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>R_ENC_A</td>
+                <td>R axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>Z_LIM_UP</td>
+                <td>Z axis limit switch (top)</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td>Z_Pos</td>
+                <td>Z axis position sensing gate</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td>+24V</td>
+                <td>24V (PSU2) supply voltage</td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td>Z_ENC_B</td>
+                <td>Z axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>11</td>
+                <td>R_ENC_B</td>
+                <td>R axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>12</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>13</td>
+                <td>Z_LIM_DN</td>
+                <td>Z axis limit switch (bottom)</td>
+            </tr>
+            <tr>
+                <td>14</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>15</td>
+                <td>+24V</td>
+                <td>24V (PSU2) supply voltage</td>
+            </tr>
+        </tbody>
+    </table>
+
+11. P11a: DB-25 socket connector on Aux. Control Board 1
+    <img src="./db25.png" width=142 height=50 alt="DB-25 connector drawing"/>
+
+    - Counterpart P11b is a DB-25 pin connector on the robot arm Aux. Control Board 3 cable, P11c is a DB-25 socket connector on the other end of the Aux. Control Board 3 cable, P11d is a DB-25 pin connector on Aux. Control Board 3
+
+    <table>
+        <thead>
+            <tr>
+                <th>Pin</th>
+                <th>Function</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>Theta_ENC_A</td>
+                <td>Theta axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>Alpha_ENC_A</td>
+                <td>Alpha axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>Beta_ENC_A</td>
+                <td>Beta axis encoder A channel</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td>Alpha_LIM_1</td>
+                <td>Alpha axis limit switch 1</td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td>Beta_LIM_1</td>
+                <td>Beta axis limit switch 1</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td>Theta_LIM_CCW</td>
+                <td>Theta axis limit switch (counterclockwise)</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td>R_LIM_MIN</td>
+                <td>R axis limit switch (EE side, minimum R)</td>
+            </tr>
+            <tr>
+                <td>11</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>12</td>
+                <td>R-Pos</td>
+                <td>R axis position sensing gate</td>
+            </tr>
+            <tr>
+                <td>13</td>
+                <td>+24V</td>
+                <td>24V (PSU2) supply voltage</td>
+            </tr>
+            <tr>
+                <td>14</td>
+                <td>Theta_ENC_B</td>
+                <td>Theta axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>15</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>16</td>
+                <td>Alpha_ENC_B</td>
+                <td>Alpha axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>17</td>
+                <td>Beta_ENC_B</td>
+                <td>Beta axis encoder B channel</td>
+            </tr>
+            <tr>
+                <td>18</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>19</td>
+                <td>Alpha_LIM_2</td>
+                <td>Alpha axis limit switch 2</td>
+            </tr>
+            <tr>
+                <td>20</td>
+                <td>Beta_LIM_2</td>
+                <td>Beta axis limit switch 2</td>
+            </tr>
+            <tr>
+                <td>21</td>
+                <td>COM24</td>
+                <td>24V (PSU2) common point</td>
+            </tr>
+            <tr>
+                <td>22</td>
+                <td>Theta_LIM_CLW</td>
+                <td>Theta axis limit switch (clockwise)</td>
+            </tr>
+            <tr>
+                <td>23</td>
+                <td>R_LIM_MAX</td>
+                <td>R axis lmit switch (blank end, maximum R)</td>
+            </tr>
+            <tr>
+                <td>24</td>
+                <td>Theta_Pos</td>
+                <td>Theta axis position sensing gate</td>
+            </tr>
+            <tr>
+                <td>25</td>
+                <td>+24V</td>
+                <td>24V (PSU2) supply voltage</td>
+            </tr>
+        </tbody>
+    </table>
 
 ## Main Control Board schematic
 
