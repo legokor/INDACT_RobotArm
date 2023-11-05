@@ -218,14 +218,14 @@ The table below contains pinout information for the STM32F746 Nucleo board.
 | PF15 | I2C4_SCL | Secondary mocrocontroller (STM32F0) clock |
 | PG0 | GPIO_EXTI0 | ESTOP interrupt input |
 | PG1 | GPIO_IN | Door switch input |
-| PG2 | GPIO_IN | Z axis Position sensing gate 1 |
-| PG3 | GPIO_IN | ? Z axis Position sensing gate 2 ? |
-| PG4 | GPIO_IN | R axis Position sensing gate 1 |
-| PG5 | GPIO_IN | ? R axis Position sensing gate 2 ? |
+| PG2 | GPIO_IN | Z axis Position sensing gate |
+| PG3 | GPIO_IN | Phi axis Position sensing gate |
+| PG4 | GPIO_IN | R axis Position sensing gate |
+| PG5 | GPIO_IN | Theta axis Position sensing gate |
 | PG6 | GPIO_OUT | ? |
 | PG7 | USB_OverCurrent | USB (built-in) |
-| PG8 |  |  |
-| PG9 |  |  |
+| PG8 | GPIO_IN | Theta axis limit switch 1 |
+| PG9 | GPIO_IN | Theta axis limit switch 2 |
 | PG10 |  |  |
 | PG11 | RMII_TX_EN | Ethernet (built-in) |
 | PG12 |  |  |
@@ -293,7 +293,7 @@ The electronics operating the arm are categorised by location as follows:
 
 1. The Electronics Box
     1. Mains voltage circuitry
-        * Mains power input connector
+        * Mains power input connector (P09)
         * RCD
         * 6A circuit breaker
         * Mains power switch
@@ -314,15 +314,15 @@ The electronics operating the arm are categorised by location as follows:
     3. The Main Control Board
         * Nucleo-F746 development board {Nucleo-morpho pin header}
         * secondary STM32F030K6TX microcontroller and related circuitry (capacitors, crystal oscillators, SWD programming (P08), Boot configuration, etc.) {optionally soldered on when Alpha and Beta axes are implemented}
-        * 5V to 3.3V Low-Dropout (LDO) linear regulator
+        * 5V to 3.3V Low-Dropout (LDO) linear regulator (LM3940IMP-3.3/NOPB)
         * Filtering and decoupling ceramic capacitors, bulk decoupling electrolytic capacitors
         * ESD protection
         * MODBUS differential line buffer (SN75LBC179AD) and termination with pull-up and pull-down resistors and grounded shielding, Rx and Tx routed as impedance-controlled diff. pairs {P04a, DB-9 serial connector}
         * ESP-01 Wifi module (3.3V power, UART, GPIO2 connected through a blue LED and series resistor to ground, GPIO0 connected through an 1k resistor to 3.3V supply) {2x4 pin header}
         * BME-280 temperature sensor module (3.3V power, I2C) {1x4 pin header}
-        * 2x16 character LCD module (3.3V power, 11-wire paralel interface, contrast setting with trimmer potentiometer between 3.3V and ground, backlight LED PWM-controlled through N-channel MOSFET and series resistor) {1x16 pin header}
-        * N-channel MOSFET to PWM-control cooling fans, {two 2-pin fan headers wired in paralel}
-        * SFH6345 digital optocouplers for limit switch, encoder, position gate, and end-effector servo PWM signals
+        * 2x16 character LCD module (3.3V power, 11-wire paralel interface, contrast setting with trimmer potentiometer between 3.3V and ground, backlight LED PWM-controlled through N-channel MOSFET (BSS123) and series resistor) {1x16 pin header}
+        * N-channel MOSFET to PWM-control cooling fans (BSS123)), {two 2-pin fan headers wired in paralel}
+        * SFH6345 digital optocouplers for limit switch, encoder, position gate signals (input 3.3V from Nucleo or secondary microcontroller, 
         * Screw terminals for power input (24V, COM_PSU2, 5V, COM_PSU3), ESTOP (COM_PSU3, GPIO), Electronics Box door switch (COM_PSU3, GPIO), motor driver control signals (6x3 GPIO + 6x COM_PSU3)
         * P05a DB-25 connector to wired remote (18 GPIOs, 7x COM_PSU3)
         * Conenction to Aux Control Boards and smart end-effector (detailed in section 2 of this list) (24V power, encoder, limit switch, position gate GPIOs, servo PWM signals, MODBUS) (P03a DB-37 connector for sensor signals, PSU2 24V power and COM_PSU2; P04a DB-9 connector for MODBUS and servos)
@@ -331,7 +331,7 @@ The electronics operating the arm are categorised by location as follows:
         * Electronics Box lid open switch
         * ESTOP button
         * status LCD (2x16 character)
-        * Mains power connector (P9)
+        * C14 Mains power connector (P9)
         * USB and Externet connectors of the Nucleo (P06, P07)
         * P01a, P02a DB-25 connectors for the stepper motor connections
         * Mounting hardware
@@ -1025,7 +1025,7 @@ Connector pinouts are marked on boards, and most connectors used can only be con
 6. P06: Ethernet connector of Nucleo on the back of the Electronics Box for connecting to the ROS host PC to the Nucleo
 7. P07: USB type-B connector of Nucleo on the back of the Electronics Box, behind a cover, for debugging and programming the Primary Microcontroller (Nucleo)
 8. P08: 6-pole SWD Pin Socket on the back of the Electronics Box, behind a cover, for debugging and programming the Secondary Microcontroller (STM32F0)
-9. P09: standard 3-pole AC power in connector on the back of the Electronics Box
+9. P09: C14 standard 3-pole AC power in connector on the back of the Electronics Box
 10. P10a: DB-15 socket connector on Aux. Control Board 1
     <img src="./db15.png" width=142 height=50 alt="DB-15 connector drawing"/>
 
