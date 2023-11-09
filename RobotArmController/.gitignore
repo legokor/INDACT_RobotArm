@@ -65,4 +65,10 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps
-/Debug/
+
+# Build directories
+Debug/
+Release/
+
+# Visual Studio Code
+.vscode/settings.json

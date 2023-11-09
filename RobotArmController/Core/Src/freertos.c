@@ -47,22 +47,14 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-osThreadId indicator_blinkingHandle;
-osThreadId control_viaGPIOHandle;
-osThreadId demo_moveHandle;
-osThreadId inverseGeometry_demoHandle;
-osMessageQId demo_move_positionsHandle;
-osMessageQId inverseGeometry_demo_move_positionsHandle;
+osThreadId defaultTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
 
-void indicator_blinking_f(void const * argument);
-void control_viaGPIO_f(void const * argument);
-void demo_move_f(void const * argument);
-void inverseGeometry_demo_f(void const * argument);
+void StartDefaultTask(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -70,24 +62,7 @@ void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize );
 
 /* Hook prototypes */
-void vApplicationIdleHook(void);
 void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
-void vApplicationMallocFailedHook(void);
-
-/* USER CODE BEGIN 2 */
-__weak void vApplicationIdleHook( void )
-{
-   /* vApplicationIdleHook() will only be called if configUSE_IDLE_HOOK is set
-   to 1 in FreeRTOSConfig.h. It will be called on each iteration of the idle
-   task. It is essential that code added to this hook function never attempts
-   to block in any way (for example, call xQueueReceive() with a block time
-   specified, or call vTaskDelay()). If the application makes use of the
-   vTaskDelete() API function (as this demo application does) then it is also
-   important that vApplicationIdleHook() is permitted to return to its calling
-   function, because it is the responsibility of the idle task to clean up
-   memory allocated by the kernel to any task that has since been deleted. */
-}
-/* USER CODE END 2 */
 
 /* USER CODE BEGIN 4 */
 __weak void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
@@ -97,22 +72,6 @@ __weak void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTask
    called if a stack overflow is detected. */
 }
 /* USER CODE END 4 */
-
-/* USER CODE BEGIN 5 */
-__weak void vApplicationMallocFailedHook(void)
-{
-   /* vApplicationMallocFailedHook() will only be called if
-   configUSE_MALLOC_FAILED_HOOK is set to 1 in FreeRTOSConfig.h. It is a hook
-   function that will get called if a call to pvPortMalloc() fails.
-   pvPortMalloc() is called internally by the kernel whenever a task, queue,
-   timer or semaphore is created. It is also called by various parts of the
-   demo application. If heap_1.c or heap_2.c are used, then the size of the
-   heap available to pvPortMalloc() is defined by configTOTAL_HEAP_SIZE in
-   FreeRTOSConfig.h, and the xPortGetFreeHeapSize() API function can be used
-   to query the size of free heap space that remains (although it does not
-   provide information on how the remaining heap might be fragmented). */
-}
-/* USER CODE END 5 */
 
 /* USER CODE BEGIN GET_IDLE_TASK_MEMORY */
 static StaticTask_t xIdleTaskTCBBuffer;
@@ -149,35 +108,14 @@ void MX_FREERTOS_Init(void) {
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
-  /* Create the queue(s) */
-  /* definition and creation of demo_move_positions */
-  osMessageQDef(demo_move_positions, 15, s_GEO_ToolPosition_Cylinder);
-  demo_move_positionsHandle = osMessageCreate(osMessageQ(demo_move_positions), NULL);
-
-  /* definition and creation of inverseGeometry_demo_move_positions */
-  osMessageQDef(inverseGeometry_demo_move_positions, 16, s_GEO_ToolPosition_Descartes);
-  inverseGeometry_demo_move_positionsHandle = osMessageCreate(osMessageQ(inverseGeometry_demo_move_positions), NULL);
-
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of indicator_blinking */
-  osThreadDef(indicator_blinking, indicator_blinking_f, osPriorityRealtime, 0, 256);
-  indicator_blinkingHandle = osThreadCreate(osThread(indicator_blinking), NULL);
-
-  /* definition and creation of control_viaGPIO */
-  osThreadDef(control_viaGPIO, control_viaGPIO_f, osPriorityRealtime, 0, 256);
-  control_viaGPIOHandle = osThreadCreate(osThread(control_viaGPIO), NULL);
-
-  /* definition and creation of demo_move */
-  osThreadDef(demo_move, demo_move_f, osPriorityRealtime, 0, 256);
-  demo_moveHandle = osThreadCreate(osThread(demo_move), NULL);
-
-  /* definition and creation of inverseGeometry_demo */
-  osThreadDef(inverseGeometry_demo, inverseGeometry_demo_f, osPriorityNormal, 0, 256);
-  inverseGeometry_demoHandle = osThreadCreate(osThread(inverseGeometry_demo), NULL);
+  /* definition and creation of defaultTask */
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -185,76 +123,22 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_indicator_blinking_f */
+/* USER CODE BEGIN Header_StartDefaultTask */
 /**
-  * @brief  Function implementing the indicator_blinking thread.
+  * @brief  Function implementing the defaultTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_indicator_blinking_f */
-void indicator_blinking_f(void const * argument)
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void const * argument)
 {
-  /* USER CODE BEGIN indicator_blinking_f */
+  /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END indicator_blinking_f */
-}
-
-/* USER CODE BEGIN Header_control_viaGPIO_f */
-/**
-* @brief Function implementing the control_viaGPIO thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_control_viaGPIO_f */
-void control_viaGPIO_f(void const * argument)
-{
-  /* USER CODE BEGIN control_viaGPIO_f */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END control_viaGPIO_f */
-}
-
-/* USER CODE BEGIN Header_demo_move_f */
-/**
-* @brief Function implementing the demo_move thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_demo_move_f */
-void demo_move_f(void const * argument)
-{
-  /* USER CODE BEGIN demo_move_f */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END demo_move_f */
-}
-
-/* USER CODE BEGIN Header_inverseGeometry_demo_f */
-/**
-* @brief Function implementing the inverseGeometry_demo thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_inverseGeometry_demo_f */
-void inverseGeometry_demo_f(void const * argument)
-{
-  /* USER CODE BEGIN inverseGeometry_demo_f */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END inverseGeometry_demo_f */
+  /* USER CODE END StartDefaultTask */
 }
 
 /* Private application code --------------------------------------------------*/
