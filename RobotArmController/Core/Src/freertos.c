@@ -25,7 +25,12 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "usart.h"
 
+#include <stdio.h>
+#include <string.h>
+
+#include "WifiController/WifiController.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,7 +40,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define USB_HUART (&huart1)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -51,7 +56,9 @@ osThreadId defaultTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-
+void handleButtonAction(const char *args);
+void WifiSetupTask(void *pvParameters);
+void WifiReceiveTask(void *pvParameters);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -143,5 +150,72 @@ void StartDefaultTask(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
+void handleButtonAction(const char *args)
+{
+    // Use the default GUI of the Wi-F controller which provides simple buttons for moving the motors
+    // of the robotarm.
+    char buffer[7] = {'\0'};
+    strcat(buffer, "- ");
+
+    const char *arg_text = "btn=";
+    const size_t arg_text_length = 4;
+
+    char *p = strstr(args, arg_text);
+    if ((p == NULL) || (strlen(p) < (arg_text_length + 2)))
+    {
+        strncat(buffer, "xx", 2 + 1);
+    }
+    else
+    {
+        strncat(buffer, p + arg_text_length, 2 + 1);
+    }
+
+    strcat(buffer, "\r\n");
+
+    HAL_UART_Transmit(USB_HUART, (uint8_t *)buffer, strlen(buffer), 200);
+}
+
+WifiController_ActionList_t actionList;
+
+void WifiSetupTask(void *pvParameters)
+{
+    const char *ap_ssid = "indact_wific";
+    const char *ap_password = "pirosalma";
+
+    // 1.) Define actions
+    WifiController_ActionList_Init(&actionList);
+    WifiController_ActionList_Add(&actionList, "/button", handleButtonAction);
+
+    // 2.) Call WifiController initialization function
+    configASSERT(WifiController_WifiController_Init(&actionList) == WifiController_ErrorCode_NONE);
+
+    // 3.) Start the receiver task
+    xTaskCreate(WifiReceiveTask, "wifi_receive", configMINIMAL_STACK_SIZE * 4, NULL, configMAX_PRIORITIES / 4 * 3, NULL);
+
+    // 3.) Set parameters for the Wi-Fi module
+    configASSERT(WifiController_WifiController_ResetModule() == WifiController_ErrorCode_NONE);
+    // Wait for the module to reset
+    vTaskDelay(pdMS_TO_TICKS(3 * 1000));
+    configASSERT(WifiController_WifiController_SetSsid(ap_ssid) == WifiController_ErrorCode_NONE);
+    configASSERT(WifiController_WifiController_SetPassword(ap_password) == WifiController_ErrorCode_NONE);
+
+    // 4.) Start the access point or station mode
+    configASSERT(WifiController_WifiController_BeginAccessPoint(10 * 1000) == WifiController_ErrorCode_NONE);
+
+    vTaskDelete(NULL);
+}
+
+void WifiReceiveTask(void *pvParameters)
+{
+    while (1)
+    {
+        WifiController_ErrorCode_t e = WifiController_WifiController_Receive();
+        if (e != WifiController_ErrorCode_NONE)
+        {
+            // TODO: Handle error.
+        }
+    }
+}
 
 /* USER CODE END Application */
