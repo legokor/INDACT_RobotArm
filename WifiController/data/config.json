@@ -1,0 +1,28 @@
+{
+    "title": "INDACT Robot Arm",
+    "page_header": "INDACT Robot Arm",
+    "text_field_top": [
+        "State: ...",
+        "Position: ..."
+    ],
+    "text_field_bottom": [],
+    "control_table": [
+        {
+            "row_label": "r axis",
+            "row_control": "<button data-btn='rm'>-</button><button data-btn='rp'>+</button>"
+        },
+        {
+            "row_label": "&phi; axis",
+            "row_control": "<button data-btn='fm'>-</button><button data-btn='fp'>+</button>"
+        },
+        {
+            "row_label": "z axis",
+            "row_control": "<button data-btn='zm'>-</button><button data-btn='zp'>+</button>"
+        },
+        {
+            "row_label": "Homing",
+            "row_control": "<button data-btn='hx'>H</button>"
+        }
+    ],
+    "user_script": "const buttons = document.querySelectorAll('button');\nbuttons.forEach((button) => {\nbutton.addEventListener('click', () => {\nbuttonClick(button);\n});\n});\n\nfunction buttonClick(button) {\nconst xhr = new XMLHttpRequest();\nconst method = 'GET';\nconst url = window.location.origin + '/action/button?btn=' + button.dataset.btn;\n\nxhr.open(method, url, true);\nxhr.responseType = '';\nxhr.onload = () => {\nconst status = xhr.status;\nif (status === 200) {\nconsole.log(`Button ${button.dataset.btn} was pressed.`);\n} else {\nconsole.log(`An error occurred while pressing button ${button.dataset.btn}! Received status: ${status}`);\n}\n};\nxhr.onerror = () => {\nconsole.log(`An error occurred while pressing button ${button.dataset.btn}.`);\n}\nxhr.send();\n}"
+}
