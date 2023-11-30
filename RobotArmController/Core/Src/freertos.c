@@ -44,10 +44,13 @@
 #define INDICATOR_BLINKING_TASK_STACK_SIZE 256
 #define CONTROL_VIA_GPIO_TASK_STACK_SIZE 256
 #define DEMO_MOVE_TASK_STACK_SIZE 256
+#define MOVE_TO_POSITION_TASK_STACK_SIZE 256
 
 // Queue sizes
 #define DEMO_MOVE_POSITIONS_QUEUE_LENGTH 15
 #define DEMO_MOVE_POSITIONS_QUEUE_ITEM_SIZE sizeof(s_GEO_ToolPosition_Cylinder)
+#define NEXT_POSITION_QUEUE_LENGTH 64
+#define NEXT_POSITION_QUEUE_ITEM_SIZE sizeof(s_GEO_ToolPosition_Cylinder)
 
 // Task codes
 #define L_GPIO_TASK_CODE                                    (0u)
@@ -65,22 +68,30 @@
 /* USER CODE BEGIN Variables */
 
 // Task variables
-StaticTask_t indicatorBlinkingTaskBuffer;
-StackType_t indicatorBlinkingTaskStack[INDICATOR_BLINKING_TASK_STACK_SIZE];
+static StaticTask_t indicatorBlinkingTaskBuffer;
+static StackType_t indicatorBlinkingTaskStack[INDICATOR_BLINKING_TASK_STACK_SIZE];
 TaskHandle_t indicatorBlinkingTaskHandle = NULL;
 
-StaticTask_t controlViaGpioTaskBuffer;
-StackType_t controlViaGpioTaskStack[CONTROL_VIA_GPIO_TASK_STACK_SIZE];
+static StaticTask_t controlViaGpioTaskBuffer;
+static StackType_t controlViaGpioTaskStack[CONTROL_VIA_GPIO_TASK_STACK_SIZE];
 TaskHandle_t controlViaGpioTaskHandle = NULL;
 
-StaticTask_t demoMoveTaskBuffer;
-StackType_t demoMoveTaskStack[DEMO_MOVE_TASK_STACK_SIZE];
+static StaticTask_t demoMoveTaskBuffer;
+static StackType_t demoMoveTaskStack[DEMO_MOVE_TASK_STACK_SIZE];
 TaskHandle_t demoMoveTaskHandle = NULL;
 
+static StaticTask_t moveToPositionTaskBuffer;
+static StackType_t moveToPositionTaskStack[MOVE_TO_POSITION_TASK_STACK_SIZE];
+TaskHandle_t moveToPositionTaskHandle = NULL;
+
 // Queue variables
-StaticQueue_t demoMovePositionsQueueBuffer;
-uint8_t demoMovePositionsQueueStorageArea[DEMO_MOVE_POSITIONS_QUEUE_LENGTH * DEMO_MOVE_POSITIONS_QUEUE_ITEM_SIZE];
+static StaticQueue_t demoMovePositionsQueueBuffer;
+static uint8_t demoMovePositionsQueueStorageArea[DEMO_MOVE_POSITIONS_QUEUE_LENGTH * DEMO_MOVE_POSITIONS_QUEUE_ITEM_SIZE];
 QueueHandle_t demoMovePositionsQueueHandle = NULL;
+
+static StaticQueue_t nextPositionQueueBuffer;
+static uint8_t nextPositionQueueStorageArea[NEXT_POSITION_QUEUE_LENGTH * NEXT_POSITION_QUEUE_ITEM_SIZE];
+QueueHandle_t nextPositionQueueHandle = NULL;
 
 // Other variables
 static s_MC_StepperMotor as_stepper_motors[KAR_MC_NUMBER_OF_MOTORS];
@@ -95,9 +106,10 @@ const osThreadAttr_t defaultTask_attributes = { .name = "defaultTask", .stack_si
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
-void indicator_blinking_f(void *pvParameters);
-void control_viaGPIO_f(void *pvParameters);
-void demo_move_f(void *pvParameters);
+static void indicator_blinking_f(void *pvParameters);
+static void control_viaGPIO_f(void *pvParameters);
+static void demo_move_f(void *pvParameters);
+static void moveToPositionTask(void *pvParameters);
 
 /* USER CODE END FunctionPrototypes */
 
@@ -141,11 +153,18 @@ void MX_FREERTOS_Init(void)
             &demoMovePositionsQueueBuffer);
     configASSERT(demoMovePositionsQueueHandle != NULL);
 
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos1), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos2), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos3), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos4), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos5), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos1), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos2), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos3), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos4), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos5), 0);
+
+    nextPositionQueueHandle = xQueueCreateStatic(
+            NEXT_POSITION_QUEUE_LENGTH,
+            NEXT_POSITION_QUEUE_ITEM_SIZE,
+            nextPositionQueueStorageArea,
+            &nextPositionQueueBuffer);
+    configASSERT(nextPositionQueueHandle != NULL);
 
     /* Create the task(s) */
     indicatorBlinkingTaskHandle = xTaskCreateStatic(
@@ -177,6 +196,16 @@ void MX_FREERTOS_Init(void)
             demoMoveTaskStack,
             &demoMoveTaskBuffer);
     configASSERT(demoMoveTaskHandle != NULL);
+
+    moveToPositionTaskHandle = xTaskCreateStatic(
+            moveToPositionTask,
+            "MoveToPosition",
+            MOVE_TO_POSITION_TASK_STACK_SIZE,
+            NULL,
+            tskIDLE_PRIORITY + 1,
+            moveToPositionTaskStack,
+            &moveToPositionTaskBuffer);
+    configASSERT(moveToPositionTaskHandle != NULL);
 
     /* USER CODE END Init */
 
@@ -521,6 +550,68 @@ void demo_move_f(void *pvParameters)
 
         /* Put the position back to the queue */
         xQueueSend(demoMovePositionsQueueHandle, (void* )&next_pos, 0);
+    }
+}
+
+void moveToPositionTask(void *pvParameters)
+{
+    s_GEO_ToolPosition_Cylinder next_pos = (s_GEO_ToolPosition_Cylinder){.fi = 0, .z = 0, .r = 0};
+    int32_t z_steps_to_make = 0, r_steps_to_make = 0, fi_steps_to_make = 0;
+    int32_t z_tmp = 0, r_tmp = 0, fi_tmp = 0;
+    uint8_t z = 0u, fi = 0u, r = 0u;
+    while (1)
+    {
+        if (xQueueReceive(nextPositionQueueHandle, (void*)(&next_pos), portMAX_DELAY) != pdTRUE)
+        {
+            // TODO: Signal error
+            continue;
+        }
+
+        as_stepper_motors[KAR_MC_MOTORID_FI].nextPos = next_pos.fi;
+        as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = next_pos.z;
+        as_stepper_motors[KAR_MC_MOTORID_R].nextPos = next_pos.r;
+
+        u8_MC_setAllMotorDir_TowardsDesiredPos_f(as_stepper_motors);
+
+        z_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_Z].nextPos - as_stepper_motors[KAR_MC_MOTORID_Z].currPos));
+        r_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_R].nextPos - as_stepper_motors[KAR_MC_MOTORID_R].currPos));
+        fi_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_FI].nextPos - as_stepper_motors[KAR_MC_MOTORID_FI].currPos));
+
+        z_tmp = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
+        r_tmp = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
+        fi_tmp = as_stepper_motors[KAR_MC_MOTORID_FI].currPos;
+
+        u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI, as_stepper_motors[KAR_MC_MOTORID_FI].dir);
+        u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_R, as_stepper_motors[KAR_MC_MOTORID_R].dir);
+        u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_stepper_motors[KAR_MC_MOTORID_Z].dir);
+
+        /* Wait for tool to reach next position */
+        while (!(r && fi && z))
+        {
+            if ((fi_steps_to_make <= i32_GEN_AbsoluteValue_f(fi_tmp - as_stepper_motors[KAR_MC_MOTORID_FI].currPos)) ||
+                    (as_limit_switches[KAR_MC_MOTORID_FI].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir) ||
+                    (as_limit_switches[KAR_MC_MOTORID_FI].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir))
+            {
+                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI);
+                fi = 1;
+            }
+            if ((z_steps_to_make <= i32_GEN_AbsoluteValue_f(z_tmp - as_stepper_motors[KAR_MC_MOTORID_Z].currPos)) ||
+                    (as_limit_switches[KAR_MC_MOTORID_Z].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir) ||
+                    (as_limit_switches[KAR_MC_MOTORID_Z].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir))
+            {
+                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
+                z = 1;
+            }
+            if ((r_steps_to_make <= i32_GEN_AbsoluteValue_f(r_tmp - as_stepper_motors[KAR_MC_MOTORID_R].currPos)) ||
+                    (as_limit_switches[KAR_MC_MOTORID_R].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir) ||
+                    (as_limit_switches[KAR_MC_MOTORID_R].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir))
+            {
+                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
+                r = 1;
+            }
+        }
+
+        r = z = fi = 0;
     }
 }
 
