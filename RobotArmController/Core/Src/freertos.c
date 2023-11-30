@@ -40,13 +40,19 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-// Task sizes
-#define INDICATOR_BLINKING_TASK_STACK_SIZE 256
-#define CONTROL_VIA_GPIO_TASK_STACK_SIZE 256
-#define DEMO_MOVE_TASK_STACK_SIZE 256
-#define MOVE_TO_POSITION_TASK_STACK_SIZE 256
+#define TASK_PRIORITY_NORMAL ((tskIDLE_PRIORITY + configMAX_PRIORITIES) / 2)
 
-// Queue sizes
+// Task settings
+#define INDICATOR_BLINKING_TASK_STACK_SIZE 256
+#define INDICATOR_BLINKING_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
+#define CONTROL_VIA_GPIO_TASK_STACK_SIZE 256
+#define CONTROL_VIA_GPIO_TASK_PRIORITY TASK_PRIORITY_NORMAL
+#define DEMO_MOVE_TASK_STACK_SIZE 256
+#define DEMO_MOVE_TASK_PRIORITY TASK_PRIORITY_NORMAL
+#define MOVE_TO_POSITION_TASK_STACK_SIZE 256
+#define MOVE_TO_POSITION_TASK_PRIORITY TASK_PRIORITY_NORMAL
+
+// Queue settings
 #define DEMO_MOVE_POSITIONS_QUEUE_LENGTH 15
 #define DEMO_MOVE_POSITIONS_QUEUE_ITEM_SIZE sizeof(s_GEO_ToolPosition_Cylinder)
 #define NEXT_POSITION_QUEUE_LENGTH 64
@@ -172,7 +178,7 @@ void MX_FREERTOS_Init(void)
             "IndicatorBlinking",
             INDICATOR_BLINKING_TASK_STACK_SIZE,
             NULL,
-            tskIDLE_PRIORITY + 1,
+            INDICATOR_BLINKING_TASK_PRIORITY,
             indicatorBlinkingTaskStack,
             &indicatorBlinkingTaskBuffer);
     configASSERT(indicatorBlinkingTaskHandle != NULL);
@@ -182,17 +188,17 @@ void MX_FREERTOS_Init(void)
             "ControlViaGpio",
             CONTROL_VIA_GPIO_TASK_STACK_SIZE,
             NULL,
-            tskIDLE_PRIORITY + 1,
+            CONTROL_VIA_GPIO_TASK_PRIORITY,
             controlViaGpioTaskStack,
             &controlViaGpioTaskBuffer);
     configASSERT(controlViaGpioTaskHandle != NULL);
 
     demoMoveTaskHandle = xTaskCreateStatic(
-            indicator_blinking_f,
+            demo_move_f,
             "DemoMove",
             DEMO_MOVE_TASK_STACK_SIZE,
             NULL,
-            tskIDLE_PRIORITY + 1,
+            DEMO_MOVE_TASK_PRIORITY,
             demoMoveTaskStack,
             &demoMoveTaskBuffer);
     configASSERT(demoMoveTaskHandle != NULL);
@@ -202,7 +208,7 @@ void MX_FREERTOS_Init(void)
             "MoveToPosition",
             MOVE_TO_POSITION_TASK_STACK_SIZE,
             NULL,
-            tskIDLE_PRIORITY + 1,
+            MOVE_TO_POSITION_TASK_PRIORITY,
             moveToPositionTaskStack,
             &moveToPositionTaskBuffer);
     configASSERT(moveToPositionTaskHandle != NULL);
