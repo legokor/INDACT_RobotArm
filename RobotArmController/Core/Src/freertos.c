@@ -29,7 +29,7 @@
 
 #include "queue.h"
 
-#include "KAR_MC_handler.h"
+#include "MotorControl/KAR_MC_handler.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
