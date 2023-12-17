@@ -27,6 +27,9 @@
 /* USER CODE BEGIN Includes */
 #include "tim.h"
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "queue.h"
 
 #include "MotorControl/KAR_MC_handler.h"
@@ -34,6 +37,28 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
+// TODO: Evaluate suggestions
+
+// Suggestion: Task codes as enum.
+typedef enum TaskCode
+{
+    TASK_CODE_NONE,
+    TASK_CODE_GPIO,
+    TASK_CODE_DEMO,
+    TASK_CODE_MOVE_QUEUE
+} TaskCode_t;
+
+// Suggestion: Type for step count.
+typedef int32_t MC_Step_t;
+
+// Suggestion: Global variables instead of part of an array.
+typedef struct MC_Motor { /* ... */ } MC_Motor_t;
+MC_Motor_t motor1;
+MC_Motor_t motor2;
+// ...
+// void do_something(MC_Motor_t *motor, void *params);
+// use like: do_something(&mototr1, 0)
 
 /* USER CODE END PTD */
 
@@ -67,6 +92,9 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+
+// Suggestion: Absolute value as macro.
+#define ABS(X) (((X) < 0) ? (-(X)) : (X))
 
 /* USER CODE END PM */
 
@@ -145,11 +173,11 @@ void MX_FREERTOS_Init(void)
     /* USER CODE BEGIN Init */
 
     /* Positions for demo_move task (Simonyi conference demo program) */
-    const s_GEO_ToolPosition_Cylinder Pos1 = (s_GEO_ToolPosition_Cylinder ) { .fi = 0, .z = 0, .r = 0 };
-    const s_GEO_ToolPosition_Cylinder Pos2 = (s_GEO_ToolPosition_Cylinder ) { .fi = 4000, .z = 4000, .r = 400 };
-    const s_GEO_ToolPosition_Cylinder Pos3 = (s_GEO_ToolPosition_Cylinder ) { .fi = 9000, .z = 7000, .r = 0 };
-    const s_GEO_ToolPosition_Cylinder Pos4 = (s_GEO_ToolPosition_Cylinder ) { .fi = 13874, .z = 10000, .r = 900 };
-    const s_GEO_ToolPosition_Cylinder Pos5 = (s_GEO_ToolPosition_Cylinder ) { .fi = 6000, .z = 5000, .r = 200 };
+    const s_GEO_ToolPosition_Cylinder Pos1 = (s_GEO_ToolPosition_Cylinder){ .fi = 0, .z = 0, .r = 0 };
+    const s_GEO_ToolPosition_Cylinder Pos2 = (s_GEO_ToolPosition_Cylinder){ .fi = 4000, .z = 4000, .r = 400 };
+    const s_GEO_ToolPosition_Cylinder Pos3 = (s_GEO_ToolPosition_Cylinder){ .fi = 9000, .z = 7000, .r = 0 };
+    const s_GEO_ToolPosition_Cylinder Pos4 = (s_GEO_ToolPosition_Cylinder){ .fi = 13874, .z = 10000, .r = 900 };
+    const s_GEO_ToolPosition_Cylinder Pos5 = (s_GEO_ToolPosition_Cylinder){ .fi = 6000, .z = 5000, .r = 200 };
 
     /* Create the queue(s) */
     demoMovePositionsQueueHandle = xQueueCreateStatic(
@@ -159,11 +187,11 @@ void MX_FREERTOS_Init(void)
             &demoMovePositionsQueueBuffer);
     configASSERT(demoMovePositionsQueueHandle != NULL);
 
-    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos1), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos2), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos3), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos4), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void* )(&Pos5), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos1), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos2), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos3), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos4), 0);
+    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos5), 0);
 
     nextPositionQueueHandle = xQueueCreateStatic(
             NEXT_POSITION_QUEUE_LENGTH,
@@ -283,38 +311,78 @@ void stepperMotor_init()
     if (!s_program_status.homing_state)
     {
         /* LIMIT SWITCH INIT */
-        as_limit_switches[KAR_MC_MOTORID_FI].max_point = HAL_GPIO_ReadPin(limswitch_fi_max_GPIO_Port, limswitch_fi_max_Pin);
-        as_limit_switches[KAR_MC_MOTORID_FI].null_point = HAL_GPIO_ReadPin(limswich_fi_null_GPIO_Port, limswich_fi_null_Pin);
-        as_limit_switches[KAR_MC_MOTORID_Z].max_point = HAL_GPIO_ReadPin(limswitch_z_max_GPIO_Port, limswitch_z_max_Pin);
-        as_limit_switches[KAR_MC_MOTORID_Z].null_point = HAL_GPIO_ReadPin(limswitch_z_null_GPIO_Port, limswitch_z_null_Pin);
-        as_limit_switches[KAR_MC_MOTORID_R].max_point = HAL_GPIO_ReadPin(limswitch_r_max_GPIO_Port, limswitch_r_max_Pin);
-        as_limit_switches[KAR_MC_MOTORID_R].null_point = HAL_GPIO_ReadPin(limswitch_r_null_GPIO_Port, limswitch_r_null_Pin);
+        as_limit_switches[KAR_MC_MOTORID_FI].max_point = HAL_GPIO_ReadPin(
+                limswitch_fi_max_GPIO_Port,
+                limswitch_fi_max_Pin);
+        as_limit_switches[KAR_MC_MOTORID_FI].null_point = HAL_GPIO_ReadPin(
+                limswich_fi_null_GPIO_Port,
+                limswich_fi_null_Pin);
+        as_limit_switches[KAR_MC_MOTORID_Z].max_point = HAL_GPIO_ReadPin(
+                limswitch_z_max_GPIO_Port,
+                limswitch_z_max_Pin);
+        as_limit_switches[KAR_MC_MOTORID_Z].null_point = HAL_GPIO_ReadPin(
+                limswitch_z_null_GPIO_Port,
+                limswitch_z_null_Pin);
+        as_limit_switches[KAR_MC_MOTORID_R].max_point = HAL_GPIO_ReadPin(
+                limswitch_r_max_GPIO_Port,
+                limswitch_r_max_Pin);
+        as_limit_switches[KAR_MC_MOTORID_R].null_point = HAL_GPIO_ReadPin(
+                limswitch_r_null_GPIO_Port,
+                limswitch_r_null_Pin);
 
         /* MOTOR INIT */
-        as_stepper_motors[KAR_MC_MOTORID_FI] = (s_MC_StepperMotor ) { .id = KAR_MC_MOTORID_FI, .dir = KAR_MC_DIR_UNDEFINED, .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR, .motorState = KAR_MC_STATE_STOPPED,
-
+        as_stepper_motors[KAR_MC_MOTORID_FI] = (s_MC_StepperMotor ){
+                .id = KAR_MC_MOTORID_FI,
+                .dir = KAR_MC_DIR_UNDEFINED,
+                .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR,
+                .motorState = KAR_MC_STATE_STOPPED,
                 .currPos = U32_KAR_MC_MAXPOS_FI / 2, .nextPos = 0,
-
                 .TIM_CH = TIM_CHANNEL_2,    //PE11
-                        .TIM = &htim1,
-
-                        .ENA = (s_GEN_GPIO ) { .GPIO_Port = motor_fi_ENA_GPIO_Port, .GPIO_Pin = motor_fi_ENA_Pin }, .DIR = (s_GEN_GPIO ) { .GPIO_Port = motor_fi_DIR_GPIO_Port, .GPIO_Pin = motor_fi_DIR_Pin } , };
-        as_stepper_motors[KAR_MC_MOTORID_Z] = (s_MC_StepperMotor ) { .id = KAR_MC_MOTORID_Z, .dir = KAR_MC_DIR_UNDEFINED, .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR, .motorState = KAR_MC_STATE_STOPPED,
-
-                .currPos = U32_KAR_MC_MAXPOS_Z / 2, .nextPos = 0,
-
+                .TIM = &htim1,
+                .ENA = (s_GEN_GPIO){
+                        .GPIO_Port = motor_fi_ENA_GPIO_Port,
+                        .GPIO_Pin = motor_fi_ENA_Pin
+                },
+                .DIR = (s_GEN_GPIO){
+                        .GPIO_Port = motor_fi_DIR_GPIO_Port,
+                        .GPIO_Pin = motor_fi_DIR_Pin
+                },
+        };
+        as_stepper_motors[KAR_MC_MOTORID_Z] = (s_MC_StepperMotor ){
+                .id = KAR_MC_MOTORID_Z,
+                .dir = KAR_MC_DIR_UNDEFINED,
+                .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR,
+                .motorState = KAR_MC_STATE_STOPPED,
+                .currPos = U32_KAR_MC_MAXPOS_Z / 2,
+                .nextPos = 0,
                 .TIM_CH = TIM_CHANNEL_1,    //PA0
-                        .TIM = &htim2,
-
-                        .ENA = (s_GEN_GPIO ) { .GPIO_Port = motor_z_ENA_GPIO_Port, .GPIO_Pin = motor_z_ENA_Pin }, .DIR = (s_GEN_GPIO ) { .GPIO_Port = motor_z_DIR_GPIO_Port, .GPIO_Pin = motor_z_DIR_Pin } , };
-        as_stepper_motors[KAR_MC_MOTORID_R] = (s_MC_StepperMotor ) { .id = KAR_MC_MOTORID_R, .dir = KAR_MC_DIR_UNDEFINED, .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR, .motorState = KAR_MC_STATE_STOPPED,
-
+                .TIM = &htim2,
+                .ENA = (s_GEN_GPIO ){
+                        .GPIO_Port = motor_z_ENA_GPIO_Port,
+                        .GPIO_Pin = motor_z_ENA_Pin
+                },
+                .DIR = (s_GEN_GPIO){
+                        .GPIO_Port = motor_z_DIR_GPIO_Port,
+                        .GPIO_Pin = motor_z_DIR_Pin
+                },
+        };
+        as_stepper_motors[KAR_MC_MOTORID_R] = (s_MC_StepperMotor){
+                .id = KAR_MC_MOTORID_R,
+                .dir = KAR_MC_DIR_UNDEFINED,
+                .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR,
+                .motorState = KAR_MC_STATE_STOPPED,
                 .currPos = U32_KAR_MC_MAXPOS_R / 2, .nextPos = 0,
-
                 .TIM_CH = TIM_CHANNEL_1,    //PA6
-                        .TIM = &htim3,
-
-                        .ENA = (s_GEN_GPIO ) { .GPIO_Port = motor_r_ENA_GPIO_Port, .GPIO_Pin = motor_r_ENA_Pin }, .DIR = (s_GEN_GPIO ) { .GPIO_Port = motor_r_DIR_GPIO_Port, .GPIO_Pin = motor_r_DIR_Pin } , };
+                .TIM = &htim3,
+                .ENA = (s_GEN_GPIO){
+                        .GPIO_Port = motor_r_ENA_GPIO_Port,
+                        .GPIO_Pin = motor_r_ENA_Pin
+                },
+                .DIR = (s_GEN_GPIO){
+                        .GPIO_Port = motor_r_DIR_GPIO_Port,
+                        .GPIO_Pin = motor_r_DIR_Pin
+                },
+        };
 
         /* Set the COM pins to GND */
         HAL_GPIO_WritePin(motor_fi_COM_GPIO_Port, motor_fi_COM_Pin, 0);
@@ -322,9 +390,18 @@ void stepperMotor_init()
         HAL_GPIO_WritePin(motor_z_COM_GPIO_Port, motor_z_COM_Pin, 0);
 
         /* Enable all motor */
-        HAL_GPIO_WritePin(as_stepper_motors[KAR_MC_MOTORID_R].ENA.GPIO_Port, as_stepper_motors[KAR_MC_MOTORID_R].ENA.GPIO_Pin, 1);  //enable = HIGH
-        HAL_GPIO_WritePin(as_stepper_motors[KAR_MC_MOTORID_Z].ENA.GPIO_Port, as_stepper_motors[KAR_MC_MOTORID_Z].ENA.GPIO_Pin, 1); // enable = HIGH
-        HAL_GPIO_WritePin(as_stepper_motors[KAR_MC_MOTORID_FI].ENA.GPIO_Port, as_stepper_motors[KAR_MC_MOTORID_FI].ENA.GPIO_Pin, 0);  // enable = GND
+        HAL_GPIO_WritePin(
+                as_stepper_motors[KAR_MC_MOTORID_R].ENA.GPIO_Port,
+                as_stepper_motors[KAR_MC_MOTORID_R].ENA.GPIO_Pin,
+                1);  //enable = HIGH
+        HAL_GPIO_WritePin(
+                as_stepper_motors[KAR_MC_MOTORID_Z].ENA.GPIO_Port,
+                as_stepper_motors[KAR_MC_MOTORID_Z].ENA.GPIO_Pin,
+                1); // enable = HIGH
+        HAL_GPIO_WritePin(
+                as_stepper_motors[KAR_MC_MOTORID_FI].ENA.GPIO_Port,
+                as_stepper_motors[KAR_MC_MOTORID_FI].ENA.GPIO_Pin,
+                0);  // enable = GND
     }
 }
 
@@ -436,12 +513,30 @@ void indicator_blinking_f(void *pvParameters)
  */
 void control_viaGPIO_f(void *pvParameters)
 {
-    s_GEN_GPIO r_pos_button = (s_GEN_GPIO ) { .GPIO_Port = motor_r_positive_button_GPIO_Port, .GPIO_Pin = motor_r_positive_button_Pin };
-    s_GEN_GPIO r_neg_button = (s_GEN_GPIO ) { .GPIO_Port = motor_r_negative_button_GPIO_Port, .GPIO_Pin = motor_r_negative_button_Pin };
-    s_GEN_GPIO fi_pos_button = (s_GEN_GPIO ) { .GPIO_Port = motor_fi_positive_button_GPIO_Port, .GPIO_Pin = motor_fi_positive_button_Pin };
-    s_GEN_GPIO fi_neg_button = (s_GEN_GPIO ) { .GPIO_Port = motor_fi_negative_button_GPIO_Port, .GPIO_Pin = motor_fi_negative_button_Pin };
-    s_GEN_GPIO z_pos_button = (s_GEN_GPIO ) { .GPIO_Port = motor_z_positive_button_GPIO_Port, .GPIO_Pin = motor_z_positive_button_Pin };
-    s_GEN_GPIO z_neg_button = (s_GEN_GPIO ) { .GPIO_Port = motor_z_negative_button_GPIO_Port, .GPIO_Pin = motor_z_negative_button_Pin };
+    s_GEN_GPIO r_pos_button = (s_GEN_GPIO){
+            .GPIO_Port = motor_r_positive_button_GPIO_Port,
+            .GPIO_Pin = motor_r_positive_button_Pin
+    };
+    s_GEN_GPIO r_neg_button = (s_GEN_GPIO){
+            .GPIO_Port = motor_r_negative_button_GPIO_Port,
+            .GPIO_Pin = motor_r_negative_button_Pin
+    };
+    s_GEN_GPIO fi_pos_button = (s_GEN_GPIO){
+            .GPIO_Port = motor_fi_positive_button_GPIO_Port,
+            .GPIO_Pin = motor_fi_positive_button_Pin
+    };
+    s_GEN_GPIO fi_neg_button = (s_GEN_GPIO){
+            .GPIO_Port = motor_fi_negative_button_GPIO_Port,
+            .GPIO_Pin = motor_fi_negative_button_Pin
+    };
+    s_GEN_GPIO z_pos_button = (s_GEN_GPIO){
+            .GPIO_Port = motor_z_positive_button_GPIO_Port,
+            .GPIO_Pin = motor_z_positive_button_Pin
+    };
+    s_GEN_GPIO z_neg_button = (s_GEN_GPIO){
+            .GPIO_Port = motor_z_negative_button_GPIO_Port,
+            .GPIO_Pin = motor_z_negative_button_Pin
+    };
 
     stepperMotor_init();
 
@@ -514,9 +609,15 @@ void demo_move_f(void *pvParameters)
 
             u8_MC_setAllMotorDir_TowardsDesiredPos_f(as_stepper_motors);
 
-            z_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_Z].nextPos - as_stepper_motors[KAR_MC_MOTORID_Z].currPos));
-            r_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_R].nextPos - as_stepper_motors[KAR_MC_MOTORID_R].currPos));
-            fi_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_FI].nextPos - as_stepper_motors[KAR_MC_MOTORID_FI].currPos));
+            z_steps_to_make = i32_GEN_AbsoluteValue_f(
+                    as_stepper_motors[KAR_MC_MOTORID_Z].nextPos
+                    - as_stepper_motors[KAR_MC_MOTORID_Z].currPos);
+            r_steps_to_make = i32_GEN_AbsoluteValue_f(
+                    as_stepper_motors[KAR_MC_MOTORID_R].nextPos
+                    - as_stepper_motors[KAR_MC_MOTORID_R].currPos);
+            fi_steps_to_make = i32_GEN_AbsoluteValue_f(
+                    as_stepper_motors[KAR_MC_MOTORID_FI].nextPos
+                    - as_stepper_motors[KAR_MC_MOTORID_FI].currPos);
 
             z_tmp = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
             r_tmp = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
@@ -529,23 +630,32 @@ void demo_move_f(void *pvParameters)
             /* Wait for tool to reach next position */
             while (!(r && fi && z))
             {
-                if ((fi_steps_to_make <= i32_GEN_AbsoluteValue_f(fi_tmp - as_stepper_motors[KAR_MC_MOTORID_FI].currPos)) || (as_limit_switches[KAR_MC_MOTORID_FI].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir)
-                        || (as_limit_switches[KAR_MC_MOTORID_FI].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir))
+                if ((r_steps_to_make <= i32_GEN_AbsoluteValue_f(r_tmp - as_stepper_motors[KAR_MC_MOTORID_R].currPos))
+                        || (as_limit_switches[KAR_MC_MOTORID_R].max_point
+                                && (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir))
+                        || (as_limit_switches[KAR_MC_MOTORID_R].null_point
+                                && (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir)))
+                {
+                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
+                    r = 1;
+                }
+                if ((fi_steps_to_make <= i32_GEN_AbsoluteValue_f(fi_tmp - as_stepper_motors[KAR_MC_MOTORID_FI].currPos))
+                        || (as_limit_switches[KAR_MC_MOTORID_FI].max_point
+                                && (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir))
+                        || (as_limit_switches[KAR_MC_MOTORID_FI].null_point
+                                && (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir)))
                 {
                     v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI);
                     fi = 1;
                 }
-                if ((z_steps_to_make <= i32_GEN_AbsoluteValue_f(z_tmp - as_stepper_motors[KAR_MC_MOTORID_Z].currPos)) || (as_limit_switches[KAR_MC_MOTORID_Z].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir)
-                        || (as_limit_switches[KAR_MC_MOTORID_Z].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir))
+                if ((z_steps_to_make <= i32_GEN_AbsoluteValue_f(z_tmp - as_stepper_motors[KAR_MC_MOTORID_Z].currPos))
+                        || (as_limit_switches[KAR_MC_MOTORID_Z].max_point
+                                && (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir))
+                        || (as_limit_switches[KAR_MC_MOTORID_Z].null_point
+                                && (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir)))
                 {
                     v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
                     z = 1;
-                }
-                if ((r_steps_to_make <= i32_GEN_AbsoluteValue_f(r_tmp - as_stepper_motors[KAR_MC_MOTORID_R].currPos)) || (as_limit_switches[KAR_MC_MOTORID_R].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir)
-                        || (as_limit_switches[KAR_MC_MOTORID_R].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir))
-                {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
-                    r = 1;
                 }
             }
 
@@ -559,65 +669,64 @@ void demo_move_f(void *pvParameters)
     }
 }
 
+static inline bool check_move_finished(const s_MC_StepperMotor *sm, const s_GEO_LimitSwitch *ls)
+{
+    // {next position reached} || {limit max reached} || {limit min reached}
+    return ((sm->dir == KAR_MC_DIR_POSITIVE) ? (sm->currPos >= sm->nextPos) : (sm->currPos <= sm->nextPos))
+            || (ls->max_point && (sm->dir == KAR_MC_DIR_POSITIVE))
+            || (ls->null_point && (sm->dir == KAR_MC_DIR_NEGATIVE));
+}
+
+static void move_to_position(s_GEO_ToolPosition_Cylinder position)
+{
+    as_stepper_motors[KAR_MC_MOTORID_R].nextPos = position.r;
+    as_stepper_motors[KAR_MC_MOTORID_FI].nextPos = position.fi;
+    as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = position.z;
+
+    u8_MC_setAllMotorDir_TowardsDesiredPos_f(as_stepper_motors);
+
+    u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_R, as_stepper_motors[KAR_MC_MOTORID_R].dir);
+    u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI, as_stepper_motors[KAR_MC_MOTORID_FI].dir);
+    u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_stepper_motors[KAR_MC_MOTORID_Z].dir);
+
+    bool r_finished = false;
+    bool fi_finished = false;
+    bool z_finished = false;
+
+    /* Wait for tool to reach next position */
+    while (!(r_finished && fi_finished && z_finished))
+    {
+        if ((!r_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_R]), &(as_limit_switches[KAR_MC_MOTORID_R])))
+        {
+            v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
+            r_finished = true;
+        }
+
+        if ((!fi_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_FI]), &(as_limit_switches[KAR_MC_MOTORID_FI])))
+        {
+            v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI);
+            fi_finished = true;
+        }
+
+        if ((!z_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_Z]), &(as_limit_switches[KAR_MC_MOTORID_Z])))
+        {
+            v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
+            z_finished = true;
+        }
+    }
+}
+
 void moveToPositionTask(void *pvParameters)
 {
-    s_GEO_ToolPosition_Cylinder next_pos = (s_GEO_ToolPosition_Cylinder){.fi = 0, .z = 0, .r = 0};
-    int32_t z_steps_to_make = 0, r_steps_to_make = 0, fi_steps_to_make = 0;
-    int32_t z_tmp = 0, r_tmp = 0, fi_tmp = 0;
-    uint8_t z = 0u, fi = 0u, r = 0u;
     while (1)
     {
-        if (xQueueReceive(nextPositionQueueHandle, (void*)(&next_pos), portMAX_DELAY) != pdTRUE)
+        s_GEO_ToolPosition_Cylinder next_pos;
+        if (xQueueReceive(nextPositionQueueHandle, &next_pos, portMAX_DELAY) != pdTRUE)
         {
             // TODO: Signal error
             continue;
         }
-
-        as_stepper_motors[KAR_MC_MOTORID_FI].nextPos = next_pos.fi;
-        as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = next_pos.z;
-        as_stepper_motors[KAR_MC_MOTORID_R].nextPos = next_pos.r;
-
-        u8_MC_setAllMotorDir_TowardsDesiredPos_f(as_stepper_motors);
-
-        z_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_Z].nextPos - as_stepper_motors[KAR_MC_MOTORID_Z].currPos));
-        r_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_R].nextPos - as_stepper_motors[KAR_MC_MOTORID_R].currPos));
-        fi_steps_to_make = i32_GEN_AbsoluteValue_f((as_stepper_motors[KAR_MC_MOTORID_FI].nextPos - as_stepper_motors[KAR_MC_MOTORID_FI].currPos));
-
-        z_tmp = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
-        r_tmp = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
-        fi_tmp = as_stepper_motors[KAR_MC_MOTORID_FI].currPos;
-
-        u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI, as_stepper_motors[KAR_MC_MOTORID_FI].dir);
-        u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_R, as_stepper_motors[KAR_MC_MOTORID_R].dir);
-        u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_stepper_motors[KAR_MC_MOTORID_Z].dir);
-
-        /* Wait for tool to reach next position */
-        while (!(r && fi && z))
-        {
-            if ((fi_steps_to_make <= i32_GEN_AbsoluteValue_f(fi_tmp - as_stepper_motors[KAR_MC_MOTORID_FI].currPos)) ||
-                    (as_limit_switches[KAR_MC_MOTORID_FI].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir) ||
-                    (as_limit_switches[KAR_MC_MOTORID_FI].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir))
-            {
-                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI);
-                fi = 1;
-            }
-            if ((z_steps_to_make <= i32_GEN_AbsoluteValue_f(z_tmp - as_stepper_motors[KAR_MC_MOTORID_Z].currPos)) ||
-                    (as_limit_switches[KAR_MC_MOTORID_Z].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir) ||
-                    (as_limit_switches[KAR_MC_MOTORID_Z].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir))
-            {
-                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
-                z = 1;
-            }
-            if ((r_steps_to_make <= i32_GEN_AbsoluteValue_f(r_tmp - as_stepper_motors[KAR_MC_MOTORID_R].currPos)) ||
-                    (as_limit_switches[KAR_MC_MOTORID_R].max_point && KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir) ||
-                    (as_limit_switches[KAR_MC_MOTORID_R].null_point && KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir))
-            {
-                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
-                r = 1;
-            }
-        }
-
-        r = z = fi = 0;
+        move_to_position(next_pos);
     }
 }
 
