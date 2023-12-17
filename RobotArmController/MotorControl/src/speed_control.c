@@ -2,6 +2,44 @@
 
 #include <math.h>
 
+static uint32_t get_timer_frequency_hz(TIM_HandleTypeDef *htim)
+{
+    TIM_TypeDef *peripheral_register = htim->Instance;
+    RCC_ClkInitTypeDef clock_init;
+    uint32_t flash_latency;
+    HAL_RCC_GetClockConfig(&clock_init, &flash_latency);
+
+    uint32_t freq = 1;
+
+    // Determine which peripheral bus the timer is on, and calculate the frequency for the timer
+    // input based on it.
+    if ((uint32_t)peripheral_register >= APB2PERIPH_BASE)
+    {
+        freq = HAL_RCC_GetPCLK2Freq();
+        if (clock_init.APB2CLKDivider != RCC_HCLK_DIV1)
+        {
+            freq *= 2;
+        }
+    }
+    else if ((uint32_t)peripheral_register >= APB1PERIPH_BASE)
+    {
+        freq = HAL_RCC_GetPCLK1Freq();
+        if (clock_init.APB1CLKDivider != RCC_HCLK_DIV1)
+        {
+            freq *= 2;
+        }
+    }
+
+    return freq;
+}
+
+bool Motor_Init(Motor_t *this)
+{
+    this->timer->frequency = get_timer_frequency_hz(this->timer->htim);
+    // TODO: Motor struct initialization
+    return true;
+}
+
 bool Motor_SetSpeed(Motor_t *this, double speed)
 {
     // Determine base parameters
