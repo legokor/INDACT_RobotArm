@@ -7,9 +7,9 @@
 #include <stm32f4xx_hal.h>
 
 #define TIMER_PRESCALER_MIN (1.0)
-#define TIMER_PRESCALER_MAX (2e16)
+#define TIMER_PRESCALER_MAX (65536.0)
 #define TIMER_PERIOD_MIN (1.0)
-#define TIMER_PERIOD_MAX (2e16)
+#define TIMER_PERIOD_MAX (65536.0)
 
 // 1.8° = 0.03141593rad
 #define MOTOR_STEP_ANGLE_R (0.03141593)
@@ -27,7 +27,7 @@
 
 // 3.95cm = 0.0395m (/rad)
 #define JOINT_TRANSFORM_FACTOR_R (0.0395)
-// 1 (rad/rad)
+// 1rad (/rad)
 #define JOINT_TRANSFORM_FACTOR_PHI (1.0)
 // 2mm / (2 * pi) = 0.00031831m (/rad)
 #define JOINT_TRANSFORM_FACTOR_Z (0.00031831)
