@@ -713,6 +713,8 @@ static void move_to_position(s_GEO_ToolPosition_Cylinder position)
             v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
             z_finished = true;
         }
+
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
