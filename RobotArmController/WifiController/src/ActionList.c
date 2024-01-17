@@ -95,33 +95,23 @@ int WifiController_ActionList_FindByPath(const WifiController_ActionList_t *this
 
 static bool add(WifiController_ActionList_t *this, const char *path, void (*handler)(const char*))
 {
-    WifiController_Action_t *newAction = (WifiController_Action_t*)pvPortMalloc(sizeof(WifiController_Action_t));
-    if (newAction == NULL)
-    {
-        // Memory allocation error
-        return false;
-    }
-
-    newAction->path = (char*)pvPortMalloc(strlen(path) + 1);
-    if (newAction->path == NULL)
-    {
-        // Memory allocation error
-        vPortFree(newAction);
-        return false;
-    }
-    strncpy(newAction->path, path, strlen(path) + 1);
-    newAction->handler = handler;
-
     WifiController_ActionListElement_t *newElement = (WifiController_ActionListElement_t*)pvPortMalloc(sizeof(WifiController_ActionListElement_t));
     if (newElement == NULL)
     {
         // Memory allocation error
-        vPortFree(newAction->path);
-        vPortFree(newAction);
         return false;
     }
 
-    newElement->action = newAction;
+    newElement->action.path = (char*)pvPortMalloc(strlen(path) + 1);
+    if (newElement->action.path == NULL)
+    {
+        // Memory allocation error
+        vPortFree(newElement);
+        return false;
+    }
+    strncpy(newElement->action.path, path, strlen(path) + 1);
+    newElement->action.handler = handler;
+
     newElement->next = NULL;
 
     if (this->tail == NULL)
@@ -168,8 +158,7 @@ static bool remove(WifiController_ActionList_t *this, int index)
         previous->next = current->next;
     }
 
-    vPortFree(current->action->path);
-    vPortFree(current->action);
+    vPortFree(current->action.path);
     vPortFree(current);
 
     this->size--;
@@ -182,8 +171,7 @@ static void clear(WifiController_ActionList_t *this)
     {
         WifiController_ActionListElement_t *temp = this->head;
         this->head = this->head->next;
-        vPortFree(temp->action->path);
-        vPortFree(temp->action);
+        vPortFree(temp->action.path);
         vPortFree(temp);
     }
 
@@ -209,7 +197,7 @@ static const WifiController_Action_t* at(const WifiController_ActionList_t *this
         current = current->next;
     }
 
-    return current->action;
+    return &(current->action);
 }
 
 static int find_by_index(const WifiController_ActionList_t *this, const char *path)
@@ -217,7 +205,7 @@ static int find_by_index(const WifiController_ActionList_t *this, const char *pa
     int index = 0;
     for (WifiController_ActionListElement_t *current = this->head; current != NULL; current = current->next)
     {
-        if (strcmp(current->action->path, path) == 0)
+        if (strcmp(current->action.path, path) == 0)
         {
             return index;
         }

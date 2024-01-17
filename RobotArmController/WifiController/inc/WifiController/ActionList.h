@@ -20,7 +20,7 @@ typedef struct WifiController_Action
  */
 typedef struct WifiController_ActionListElement
 {
-    WifiController_Action_t *action; /**< The action. */
+    WifiController_Action_t action; /**< The action. */
     struct WifiController_ActionListElement *next; /**< The next element in the list. */
 } WifiController_ActionListElement_t;
 
