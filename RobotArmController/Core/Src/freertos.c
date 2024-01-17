@@ -30,10 +30,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "queue.h"
+
 #include "tim.h"
 #include "usart.h"
-
-#include "queue.h"
+#include "rtos_priorities.h"
 
 #include "MotorControl/KAR_MC_handler.h"
 #include "WifiController/WifiController.h"
@@ -69,17 +70,17 @@ MC_Motor_t motor2;
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define TASK_PRIORITY_NORMAL ((tskIDLE_PRIORITY + configMAX_PRIORITIES) / 2)
-
 // Task settings
 #define INDICATOR_BLINKING_TASK_STACK_SIZE 256
-#define INDICATOR_BLINKING_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
+#define INDICATOR_BLINKING_TASK_PRIORITY TASK_PRIORITY_LOWEST
 #define CONTROL_VIA_GPIO_TASK_STACK_SIZE 256
 #define CONTROL_VIA_GPIO_TASK_PRIORITY TASK_PRIORITY_NORMAL
 #define DEMO_MOVE_TASK_STACK_SIZE 256
 #define DEMO_MOVE_TASK_PRIORITY TASK_PRIORITY_NORMAL
-#define MOVE_TO_POSITION_TASK_STACK_SIZE 256
+#define MOVE_TO_POSITION_TASK_STACK_SIZE 512
 #define MOVE_TO_POSITION_TASK_PRIORITY TASK_PRIORITY_NORMAL
+#define WIFI_RECEIVE_TASK_STACK_SIZE 512
+#define WIFI_RECEIVE_TASK_PRIORITY TASK_PRIORITY_NORMAL
 
 // Queue settings
 #define DEMO_MOVE_POSITIONS_QUEUE_LENGTH 15
@@ -88,9 +89,9 @@ MC_Motor_t motor2;
 #define NEXT_POSITION_QUEUE_ITEM_SIZE sizeof(s_GEO_ToolPosition_Cylinder)
 
 // Task codes
-#define L_GPIO_TASK_CODE                                    (0u)
-#define L_NO_TASK_CODE                                      (1u)
-#define L_DEMO_TASK_CODE                                    (2u)
+#define L_GPIO_TASK_CODE (0u)
+#define L_NO_TASK_CODE (1u)
+#define L_DEMO_TASK_CODE (2u)
 
 #define USB_HUART (&huart1)
 /* USER CODE END PD */
@@ -123,6 +124,12 @@ static StaticTask_t moveToPositionTaskBuffer;
 static StackType_t moveToPositionTaskStack[MOVE_TO_POSITION_TASK_STACK_SIZE];
 TaskHandle_t moveToPositionTaskHandle = NULL;
 
+static StaticTask_t wifiReceiveTaskBuffer;
+static StackType_t wifiReceiveTaskStack[WIFI_RECEIVE_TASK_STACK_SIZE];
+TaskHandle_t wifiReceiveTaskHandle = NULL;
+
+TaskHandle_t wifiSetupTaskHandle = NULL;
+
 // Queue variables
 static StaticQueue_t demoMovePositionsQueueBuffer;
 static uint8_t demoMovePositionsQueueStorageArea[DEMO_MOVE_POSITIONS_QUEUE_LENGTH * DEMO_MOVE_POSITIONS_QUEUE_ITEM_SIZE];
@@ -137,6 +144,8 @@ static s_MC_StepperMotor as_stepper_motors[KAR_MC_NUMBER_OF_MOTORS];
 static s_GEO_LimitSwitch as_limit_switches[KAR_MC_NUMBER_OF_MOTORS];
 static s_GEN_ProgramStatus s_program_status;
 
+static WifiController_ActionList_t wifiActionList;
+
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -149,9 +158,10 @@ static void indicator_blinking_f(void *pvParameters);
 static void control_viaGPIO_f(void *pvParameters);
 static void demo_move_f(void *pvParameters);
 static void moveToPositionTask(void *pvParameters);
+void wifiSetupTask(void *pvParameters);
+void wifiReceiveTask(void *pvParameters);
+
 void handleButtonAction(const char *args);
-void WifiSetupTask(void *pvParameters);
-void WifiReceiveTask(void *pvParameters);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
@@ -237,16 +247,34 @@ void MX_FREERTOS_Init(void)
             demoMoveTaskStack,
             &demoMoveTaskBuffer);
     configASSERT(demoMoveTaskHandle != NULL);
-
-    moveToPositionTaskHandle = xTaskCreateStatic(
-            moveToPositionTask,
-            "MoveToPosition",
-            MOVE_TO_POSITION_TASK_STACK_SIZE,
-            NULL,
-            MOVE_TO_POSITION_TASK_PRIORITY,
-            moveToPositionTaskStack,
-            &moveToPositionTaskBuffer);
-    configASSERT(moveToPositionTaskHandle != NULL);
+//
+//    moveToPositionTaskHandle = xTaskCreateStatic(
+//            moveToPositionTask,
+//            "MoveToPosition",
+//            MOVE_TO_POSITION_TASK_STACK_SIZE,
+//            NULL,
+//            MOVE_TO_POSITION_TASK_PRIORITY,
+//            moveToPositionTaskStack,
+//            &moveToPositionTaskBuffer);
+//    configASSERT(moveToPositionTaskHandle != NULL);
+//
+//    wifiReceiveTaskHandle = xTaskCreateStatic(
+//            wifiReceiveTask,
+//            "WifiReceive",
+//            WIFI_RECEIVE_TASK_STACK_SIZE,
+//            NULL,
+//            WIFI_RECEIVE_TASK_PRIORITY,
+//            wifiReceiveTaskStack,
+//            &wifiReceiveTaskBuffer);
+//    configASSERT(wifiReceiveTaskHandle != NULL);
+//
+//    configASSERT(xTaskCreate(
+//            wifiSetupTask,
+//            "WifiSetup",
+//            configMINIMAL_STACK_SIZE,
+//            NULL,
+//            TASK_PRIORITY_NORMAL,
+//            &wifiSetupTaskHandle) == pdPASS);
 
     /* USER CODE END Init */
 
@@ -293,6 +321,7 @@ void StartDefaultTask(void *argument)
     /* Infinite loop */
     for (;;)
     {
+        // TODO: Use this for printing some information to the serial port.
         osDelay(1);
     }
     /* USER CODE END StartDefaultTask */
@@ -318,10 +347,10 @@ void stepperMotor_init()
     if (!s_program_status.homing_state)
     {
         /* LIMIT SWITCH INIT */
-        as_limit_switches[KAR_MC_MOTORID_FI].max_point = HAL_GPIO_ReadPin(
+        as_limit_switches[KAR_MC_MOTORID_PHI].max_point = HAL_GPIO_ReadPin(
                 limswitch_fi_max_GPIO_Port,
                 limswitch_fi_max_Pin);
-        as_limit_switches[KAR_MC_MOTORID_FI].null_point = HAL_GPIO_ReadPin(
+        as_limit_switches[KAR_MC_MOTORID_PHI].null_point = HAL_GPIO_ReadPin(
                 limswich_fi_null_GPIO_Port,
                 limswich_fi_null_Pin);
         as_limit_switches[KAR_MC_MOTORID_Z].max_point = HAL_GPIO_ReadPin(
@@ -338,8 +367,8 @@ void stepperMotor_init()
                 limswitch_r_null_Pin);
 
         /* MOTOR INIT */
-        as_stepper_motors[KAR_MC_MOTORID_FI] = (s_MC_StepperMotor ){
-                .id = KAR_MC_MOTORID_FI,
+        as_stepper_motors[KAR_MC_MOTORID_PHI] = (s_MC_StepperMotor ){
+                .id = KAR_MC_MOTORID_PHI,
                 .dir = KAR_MC_DIR_UNDEFINED,
                 .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR,
                 .motorState = KAR_MC_STATE_STOPPED,
@@ -406,8 +435,8 @@ void stepperMotor_init()
                 as_stepper_motors[KAR_MC_MOTORID_Z].ENA.GPIO_Pin,
                 1); // enable = HIGH
         HAL_GPIO_WritePin(
-                as_stepper_motors[KAR_MC_MOTORID_FI].ENA.GPIO_Port,
-                as_stepper_motors[KAR_MC_MOTORID_FI].ENA.GPIO_Pin,
+                as_stepper_motors[KAR_MC_MOTORID_PHI].ENA.GPIO_Port,
+                as_stepper_motors[KAR_MC_MOTORID_PHI].ENA.GPIO_Pin,
                 0);  // enable = GND
     }
 }
@@ -442,9 +471,9 @@ void homing_sequence()
             while (!(r && fi && z))
             {
                 //FI axis check
-                if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_FI].null_point) && (0u == fi))
+                if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_PHI].null_point) && (0u == fi))
                 {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI);
+                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
                     fi = 1;
                 }
 
@@ -563,7 +592,7 @@ void control_viaGPIO_f(void *pvParameters)
 
         /* Axis control functions */
         u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_R, as_limit_switches, r_pos_button, r_neg_button);
-        u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_FI, as_limit_switches, fi_pos_button, fi_neg_button);
+        u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_PHI, as_limit_switches, fi_pos_button, fi_neg_button);
         u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_limit_switches, z_pos_button, z_neg_button);
     }
 }
@@ -610,7 +639,7 @@ void demo_move_f(void *pvParameters)
 
         if (xQueueReceive(demoMovePositionsQueueHandle, (void*)&next_pos, 1))
         {
-            as_stepper_motors[KAR_MC_MOTORID_FI].nextPos = next_pos.fi;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].nextPos = next_pos.fi;
             as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = next_pos.z;
             as_stepper_motors[KAR_MC_MOTORID_R].nextPos = next_pos.r;
 
@@ -623,14 +652,14 @@ void demo_move_f(void *pvParameters)
                     as_stepper_motors[KAR_MC_MOTORID_R].nextPos
                     - as_stepper_motors[KAR_MC_MOTORID_R].currPos);
             fi_steps_to_make = i32_GEN_AbsoluteValue_f(
-                    as_stepper_motors[KAR_MC_MOTORID_FI].nextPos
-                    - as_stepper_motors[KAR_MC_MOTORID_FI].currPos);
+                    as_stepper_motors[KAR_MC_MOTORID_PHI].nextPos
+                    - as_stepper_motors[KAR_MC_MOTORID_PHI].currPos);
 
             z_tmp = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
             r_tmp = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
-            fi_tmp = as_stepper_motors[KAR_MC_MOTORID_FI].currPos;
+            fi_tmp = as_stepper_motors[KAR_MC_MOTORID_PHI].currPos;
 
-            u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI, as_stepper_motors[KAR_MC_MOTORID_FI].dir);
+            u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI, as_stepper_motors[KAR_MC_MOTORID_PHI].dir);
             u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_R, as_stepper_motors[KAR_MC_MOTORID_R].dir);
             u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_stepper_motors[KAR_MC_MOTORID_Z].dir);
 
@@ -646,13 +675,13 @@ void demo_move_f(void *pvParameters)
                     v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
                     r = 1;
                 }
-                if ((fi_steps_to_make <= i32_GEN_AbsoluteValue_f(fi_tmp - as_stepper_motors[KAR_MC_MOTORID_FI].currPos))
-                        || (as_limit_switches[KAR_MC_MOTORID_FI].max_point
-                                && (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir))
-                        || (as_limit_switches[KAR_MC_MOTORID_FI].null_point
-                                && (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir)))
+                if ((fi_steps_to_make <= i32_GEN_AbsoluteValue_f(fi_tmp - as_stepper_motors[KAR_MC_MOTORID_PHI].currPos))
+                        || (as_limit_switches[KAR_MC_MOTORID_PHI].max_point
+                                && (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_PHI].dir))
+                        || (as_limit_switches[KAR_MC_MOTORID_PHI].null_point
+                                && (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_PHI].dir)))
                 {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI);
+                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
                     fi = 1;
                 }
                 if ((z_steps_to_make <= i32_GEN_AbsoluteValue_f(z_tmp - as_stepper_motors[KAR_MC_MOTORID_Z].currPos))
@@ -687,13 +716,13 @@ static inline bool check_move_finished(const s_MC_StepperMotor *sm, const s_GEO_
 static void move_to_position(s_GEO_ToolPosition_Cylinder position)
 {
     as_stepper_motors[KAR_MC_MOTORID_R].nextPos = position.r;
-    as_stepper_motors[KAR_MC_MOTORID_FI].nextPos = position.fi;
+    as_stepper_motors[KAR_MC_MOTORID_PHI].nextPos = position.fi;
     as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = position.z;
 
     u8_MC_setAllMotorDir_TowardsDesiredPos_f(as_stepper_motors);
 
     u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_R, as_stepper_motors[KAR_MC_MOTORID_R].dir);
-    u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI, as_stepper_motors[KAR_MC_MOTORID_FI].dir);
+    u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI, as_stepper_motors[KAR_MC_MOTORID_PHI].dir);
     u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_stepper_motors[KAR_MC_MOTORID_Z].dir);
 
     bool r_finished = false;
@@ -709,9 +738,9 @@ static void move_to_position(s_GEO_ToolPosition_Cylinder position)
             r_finished = true;
         }
 
-        if ((!fi_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_FI]), &(as_limit_switches[KAR_MC_MOTORID_FI])))
+        if ((!fi_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_PHI]), &(as_limit_switches[KAR_MC_MOTORID_PHI])))
         {
-            v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_FI);
+            v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
             fi_finished = true;
         }
 
@@ -819,27 +848,27 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         }
         break;
     case limswich_fi_null_Pin:
-        as_limit_switches[KAR_MC_MOTORID_FI].null_point = HAL_GPIO_ReadPin(limswich_fi_null_GPIO_Port, limswich_fi_null_Pin);
-        if (as_limit_switches[KAR_MC_MOTORID_FI].null_point)
+        as_limit_switches[KAR_MC_MOTORID_PHI].null_point = HAL_GPIO_ReadPin(limswich_fi_null_GPIO_Port, limswich_fi_null_Pin);
+        if (as_limit_switches[KAR_MC_MOTORID_PHI].null_point)
         {
-            as_stepper_motors[KAR_MC_MOTORID_FI].currPos = 0u;
-            as_stepper_motors[KAR_MC_MOTORID_FI].allowedDir = KAR_MC_ALLOWDIR_POSDIR;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].currPos = 0u;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].allowedDir = KAR_MC_ALLOWDIR_POSDIR;
         }
         else
         {
-            as_stepper_motors[KAR_MC_MOTORID_FI].allowedDir = KAR_MC_ALLOWDIR_BOTHDIR;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].allowedDir = KAR_MC_ALLOWDIR_BOTHDIR;
         }
         break;
     case limswitch_fi_max_Pin:
-        as_limit_switches[KAR_MC_MOTORID_FI].max_point = HAL_GPIO_ReadPin(limswitch_fi_max_GPIO_Port, limswitch_fi_max_Pin);
-        if (as_limit_switches[KAR_MC_MOTORID_FI].max_point)
+        as_limit_switches[KAR_MC_MOTORID_PHI].max_point = HAL_GPIO_ReadPin(limswitch_fi_max_GPIO_Port, limswitch_fi_max_Pin);
+        if (as_limit_switches[KAR_MC_MOTORID_PHI].max_point)
         {
-            as_stepper_motors[KAR_MC_MOTORID_FI].currPos = U32_KAR_MC_MAXPOS_FI;
-            as_stepper_motors[KAR_MC_MOTORID_FI].allowedDir = KAR_MC_ALLOWDIR_NEGDIR;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].currPos = U32_KAR_MC_MAXPOS_FI;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].allowedDir = KAR_MC_ALLOWDIR_NEGDIR;
         }
         else
         {
-            as_stepper_motors[KAR_MC_MOTORID_FI].allowedDir = KAR_MC_ALLOWDIR_BOTHDIR;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].allowedDir = KAR_MC_ALLOWDIR_BOTHDIR;
         }
         break;
     }
@@ -864,13 +893,13 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM1)
     {
-        if (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir)
+        if (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_PHI].dir)
         {
-            as_stepper_motors[KAR_MC_MOTORID_FI].currPos--;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].currPos--;
         }
-        else if (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_FI].dir)
+        else if (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_PHI].dir)
         {
-            as_stepper_motors[KAR_MC_MOTORID_FI].currPos++;
+            as_stepper_motors[KAR_MC_MOTORID_PHI].currPos++;
         }
     }
     if (htim->Instance == TIM2)
@@ -897,24 +926,98 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     }
 }
 
+static void send_new_position(const char *btn)
+{
+    s_GEO_ToolPosition_Cylinder pos;
+    // Disable OS and interrupts while creating local copy of global data.
+    vPortEnterCritical();
+    pos.r = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
+    pos.fi = as_stepper_motors[KAR_MC_MOTORID_PHI].currPos;
+    pos.z = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
+    vPortExitCritical();
+
+    const int32_t d = 10;
+
+    if (strncmp(btn, "rp", 2))
+    {
+        pos.r += d;
+        if (pos.r > U32_KAR_MC_MAXPOS_R)
+        {
+            pos.r = U32_KAR_MC_MAXPOS_R;
+        }
+    }
+    else if (strncmp(btn, "rn", 2))
+    {
+        pos.r -= d;
+        if (pos.r < 0)
+        {
+            pos.r = 0;
+        }
+    }
+    else if (strncmp(btn, "fp", 2))
+    {
+        pos.fi += d;
+        if (pos.r > U32_KAR_MC_MAXPOS_FI)
+        {
+            pos.r = U32_KAR_MC_MAXPOS_FI;
+        }
+    }
+    else if (strncmp(btn, "fn", 2))
+    {
+        pos.fi -= d;
+        if (pos.r < 0)
+        {
+            pos.r = 0;
+        }
+    }
+    else if (strncmp(btn, "zp", 2))
+    {
+        pos.z += d;
+        if (pos.r > U32_KAR_MC_MAXPOS_Z)
+        {
+            pos.r = U32_KAR_MC_MAXPOS_Z;
+        }
+    }
+    else if (strncmp(btn, "zn", 2))
+    {
+        pos.z -= d;
+        if (pos.r < 0)
+        {
+            pos.r = 0;
+        }
+    }
+    else if (strncmp(btn, "hx", 2))
+    {
+        pos.r = 0;
+        pos.fi = 0;
+        pos.z = 0;
+    }
+
+    xQueueSend(nextPositionQueueHandle, &pos, pdMS_TO_TICKS(10));
+}
+
 void handleButtonAction(const char *args)
 {
-    // Use the default GUI of the Wi-F controller which provides simple buttons for moving the motors
-    // of the robotarm.
-    char buffer[7] = {'\0'};
+    // Use the default GUI of the Wi-Fi controller which provides simple buttons for moving the
+    // motors of the robotarm.
+    char buffer[7] = { '\0' };
     strcat(buffer, "- ");
 
     const char *arg_text = "btn=";
     const size_t arg_text_length = 4;
 
     char *p = strstr(args, arg_text);
-    if ((p == NULL) || (strlen(p) < (arg_text_length + 2)))
+    if ((p != NULL) && (strlen(p) >= (arg_text_length + 2)))
     {
-        strncat(buffer, "xx", 2 + 1);
+        char btn[3] = { '\0' };
+        strncpy(btn, p + arg_text_length, 2);
+        send_new_position(btn);
+
+        strncat(buffer, p + arg_text_length, 2 + 1);
     }
     else
     {
-        strncat(buffer, p + arg_text_length, 2 + 1);
+        strncat(buffer, "xx", 2 + 1);
     }
 
     strcat(buffer, "\r\n");
@@ -922,42 +1025,46 @@ void handleButtonAction(const char *args)
     HAL_UART_Transmit(USB_HUART, (uint8_t *)buffer, strlen(buffer), 200);
 }
 
-WifiController_ActionList_t actionList;
-
-void WifiSetupTask(void *pvParameters)
+void wifiSetupTask(void *pvParameters)
 {
-    const char *ap_ssid = "indact_wific";
+    const char *ap_ssid = "indactrobot";
     const char *ap_password = "pirosalma";
 
-    // 1.) Define actions
-    WifiController_ActionList_Init(&actionList);
-    WifiController_ActionList_Add(&actionList, "/button", handleButtonAction);
+    // Wait for the module to start after power-up
+    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
 
-    // 2.) Call WifiController initialization function
-    configASSERT(WifiController_WifiController_Init(&actionList) == WifiController_ErrorCode_NONE);
+    // Wait for the receive task to start
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-    // 3.) Start the receiver task
-    xTaskCreate(WifiReceiveTask, "wifi_receive", configMINIMAL_STACK_SIZE * 4, NULL, configMAX_PRIORITIES / 4 * 3, NULL);
-
-    // 3.) Set parameters for the Wi-Fi module
     configASSERT(WifiController_WifiController_ResetModule() == WifiController_ErrorCode_NONE);
+
     // Wait for the module to reset
     vTaskDelay(pdMS_TO_TICKS(3 * 1000));
+
     configASSERT(WifiController_WifiController_SetSsid(ap_ssid) == WifiController_ErrorCode_NONE);
     configASSERT(WifiController_WifiController_SetPassword(ap_password) == WifiController_ErrorCode_NONE);
 
-    // 4.) Start the access point or station mode
+    // Start the access point or station mode
     configASSERT(WifiController_WifiController_BeginAccessPoint(10 * 1000) == WifiController_ErrorCode_NONE);
 
     vTaskDelete(NULL);
 }
 
-void WifiReceiveTask(void *pvParameters)
+void wifiReceiveTask(void *pvParameters)
 {
+    WifiController_ActionList_Init(&wifiActionList);
+    WifiController_ActionList_Add(&wifiActionList, "/button", handleButtonAction);
+
+    configASSERT(WifiController_WifiController_Init(&wifiActionList) == WifiController_ErrorCode_NONE);
+
+    // Notify the setup task about the start of receive
+    xTaskNotifyGive(wifiSetupTaskHandle);
+
     while (1)
     {
-        WifiController_ErrorCode_t e = WifiController_WifiController_Receive();
-        if (e != WifiController_ErrorCode_NONE)
+        WifiController_ErrorCode_t ec;
+        ec = WifiController_WifiController_Receive();
+        if (ec != WifiController_ErrorCode_NONE)
         {
             // TODO: Handle error.
         }

@@ -72,3 +72,6 @@ Release/
 
 # Visual Studio Code
 .vscode/settings.json
+
+# STM32CubeIDE
+.settings/stm32cubeide.project.prefs

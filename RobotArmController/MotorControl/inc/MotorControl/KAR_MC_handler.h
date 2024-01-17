@@ -57,7 +57,7 @@
 #define KAR_MC_ALLOWDIR_NEGDIR						(1u)
 #define KAR_MC_ALLOWDIR_NODIR						(0u)
 
-#define KAR_MC_MOTORID_FI							(0u)
+#define KAR_MC_MOTORID_PHI							(0u)
 #define KAR_MC_MOTORID_Z							(1u)
 #define KAR_MC_MOTORID_R							(2u)
 

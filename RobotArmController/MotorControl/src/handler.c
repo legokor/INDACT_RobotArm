@@ -39,7 +39,7 @@ MC_ErrorCode_t MC_StartMotor(MC_StepperMotor_t *stepper_motor)
         return MC_ErrorCode_WrongParameter;
     }
 
-    MC_ErrorCode_t ec = MC_SetMotorDirection(stepper_motor, direction);
+    MC_ErrorCode_t ec = MC_SetMotorDirection(stepper_motor, stepper_motor->direction);
 
     if (ec == MC_ErrorCode_Ok)
     {
@@ -48,10 +48,10 @@ MC_ErrorCode_t MC_StartMotor(MC_StepperMotor_t *stepper_motor)
     }
     else
     {
-        stepper_motor->motorState = MC_State_ForbiddenState;
+        stepper_motor->motorState = MC_ErrorCode_ForbiddenState;
     }
 
-    return errorCode;
+    return ec;
 }
 
 MC_ErrorCode_t MC_StartMotors(MC_StepperMotor_t *stepper_motors, size_t num_motors)

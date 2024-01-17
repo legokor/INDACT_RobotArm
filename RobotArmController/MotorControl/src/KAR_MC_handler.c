@@ -219,7 +219,7 @@ e_MC_ErrorCode_t u8_MC_setAllMotorDir_TowardsDesiredPos_f(s_MC_StepperMotor *ste
 	e_MC_ErrorCode_t errorCode = e_MC_ErrorCode_OK;
 
 	int32_t differences[KAR_MC_NUMBER_OF_MOTORS];
-	differences[0] = (stepper_motors[KAR_MC_MOTORID_FI].nextPos - stepper_motors[KAR_MC_MOTORID_FI].currPos);
+	differences[0] = (stepper_motors[KAR_MC_MOTORID_PHI].nextPos - stepper_motors[KAR_MC_MOTORID_PHI].currPos);
 	differences[1] = (stepper_motors[KAR_MC_MOTORID_Z].nextPos - stepper_motors[KAR_MC_MOTORID_Z].currPos);
 	differences[2] = (stepper_motors[KAR_MC_MOTORID_R].nextPos - stepper_motors[KAR_MC_MOTORID_R].currPos);
 
@@ -343,7 +343,7 @@ inline void v_MC_StopMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t motor_id
  */
 inline void v_MC_StopAllMotor_f(s_MC_StepperMotor *stepperMotors)
 {
-	v_MC_StopMotor_f(stepperMotors, KAR_MC_MOTORID_FI);
+	v_MC_StopMotor_f(stepperMotors, KAR_MC_MOTORID_PHI);
 	v_MC_StopMotor_f(stepperMotors, KAR_MC_MOTORID_Z);
 	v_MC_StopMotor_f(stepperMotors, KAR_MC_MOTORID_R);
 }
