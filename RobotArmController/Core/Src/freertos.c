@@ -30,40 +30,40 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "event_groups.h"
 #include "queue.h"
+#include "semphr.h"
 
+#include "rtos_priorities.h"
+#include "stepper_motor.h"
 #include "tim.h"
 #include "usart.h"
-#include "rtos_priorities.h"
 
 #include "MotorControl/KAR_MC_handler.h"
 #include "WifiController/WifiController.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
 
-// TODO: Evaluate suggestions
-
-// Suggestion: Task codes as enum.
-typedef enum TaskCode
-{
-    TASK_CODE_NONE,
-    TASK_CODE_GPIO,
-    TASK_CODE_DEMO,
-    TASK_CODE_MOVE_QUEUE
-} TaskCode_t;
-
-// Suggestion: Type for step count.
 typedef int32_t MC_Step_t;
 
-// Suggestion: Global variables instead of part of an array.
-typedef struct MC_Motor { /* ... */ } MC_Motor_t;
-MC_Motor_t motor1;
-MC_Motor_t motor2;
-// ...
-// void do_something(MC_Motor_t *motor, void *params);
-// use like: do_something(&mototr1, 0)
+typedef struct PositionCyl
+{
+    MC_Step_t r;
+    MC_Step_t phi;
+    MC_Step_t z;
+} PositionCyl_t;
+
+typedef enum AppState
+{
+    AppState_Error,
+    AppState_Idle,
+    AppState_DemoMoveControl,
+    AppState_GpioControl,
+    AppState_WifiControl
+} AppState_t;
 
 /* USER CODE END PTD */
 
@@ -71,27 +71,31 @@ MC_Motor_t motor2;
 /* USER CODE BEGIN PD */
 
 // Task settings
-#define INDICATOR_BLINKING_TASK_STACK_SIZE 256
+#define INDICATOR_BLINKING_TASK_STACK_SIZE 128
 #define INDICATOR_BLINKING_TASK_PRIORITY TASK_PRIORITY_LOWEST
-#define CONTROL_VIA_GPIO_TASK_STACK_SIZE 256
-#define CONTROL_VIA_GPIO_TASK_PRIORITY TASK_PRIORITY_NORMAL
-#define DEMO_MOVE_TASK_STACK_SIZE 256
-#define DEMO_MOVE_TASK_PRIORITY TASK_PRIORITY_NORMAL
-#define MOVE_TO_POSITION_TASK_STACK_SIZE 512
-#define MOVE_TO_POSITION_TASK_PRIORITY TASK_PRIORITY_NORMAL
 #define WIFI_RECEIVE_TASK_STACK_SIZE 512
-#define WIFI_RECEIVE_TASK_PRIORITY TASK_PRIORITY_NORMAL
+#define WIFI_RECEIVE_TASK_PRIORITY TASK_PRIORITY_ABOVE_NORMAL
+#define DEMO_MOVE_CONTROL_TASK_STACK_SIZE 512
+#define DEMO_MOVE_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
+#define GPIO_CONTROL_TASK_STACK_SIZE 512
+#define GPIO_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
+#define WIFI_CONTROL_TASK_STACK_SIZE 512
+#define WIFI_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
 
 // Queue settings
-#define DEMO_MOVE_POSITIONS_QUEUE_LENGTH 15
-#define DEMO_MOVE_POSITIONS_QUEUE_ITEM_SIZE sizeof(s_GEO_ToolPosition_Cylinder)
 #define NEXT_POSITION_QUEUE_LENGTH 64
-#define NEXT_POSITION_QUEUE_ITEM_SIZE sizeof(s_GEO_ToolPosition_Cylinder)
+#define NEXT_POSITION_QUEUE_ITEM_SIZE sizeof(PositionCyl_t)
 
-// Task codes
-#define L_GPIO_TASK_CODE (0u)
-#define L_NO_TASK_CODE (1u)
-#define L_DEMO_TASK_CODE (2u)
+// Event group settings
+#define STATE_DEMO_MOVE_CONTROL_BIT (1 << 0)
+#define STATE_GPIO_CONTROL_BIT (1 << 1)
+#define STATE_WIFI_CONTROL_BIT (1 << 2)
+
+#define TASK_STARTED_INDICATOR_BLINKING_TASK_BIT (1 << 0)
+#define TASK_STARTED_WIFI_RECEIVE_TASK_BIT (1 << 1)
+#define TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT (1 << 2)
+#define TASK_STARTED_GPIO_CONTROL_TASK_BIT (1 << 3)
+#define TASK_STARTED_WIFI_CONTROL_TASK_BIT (1 << 4)
 
 #define USB_HUART (&huart1)
 /* USER CODE END PD */
@@ -99,7 +103,6 @@ MC_Motor_t motor2;
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-// Suggestion: Absolute value as macro.
 #define ABS(X) (((X) < 0) ? (-(X)) : (X))
 
 /* USER CODE END PM */
@@ -111,60 +114,72 @@ MC_Motor_t motor2;
 static StaticTask_t indicatorBlinkingTaskBuffer;
 static StackType_t indicatorBlinkingTaskStack[INDICATOR_BLINKING_TASK_STACK_SIZE];
 TaskHandle_t indicatorBlinkingTaskHandle = NULL;
-
-static StaticTask_t controlViaGpioTaskBuffer;
-static StackType_t controlViaGpioTaskStack[CONTROL_VIA_GPIO_TASK_STACK_SIZE];
-TaskHandle_t controlViaGpioTaskHandle = NULL;
-
-static StaticTask_t demoMoveTaskBuffer;
-static StackType_t demoMoveTaskStack[DEMO_MOVE_TASK_STACK_SIZE];
-TaskHandle_t demoMoveTaskHandle = NULL;
-
-static StaticTask_t moveToPositionTaskBuffer;
-static StackType_t moveToPositionTaskStack[MOVE_TO_POSITION_TASK_STACK_SIZE];
-TaskHandle_t moveToPositionTaskHandle = NULL;
-
 static StaticTask_t wifiReceiveTaskBuffer;
 static StackType_t wifiReceiveTaskStack[WIFI_RECEIVE_TASK_STACK_SIZE];
 TaskHandle_t wifiReceiveTaskHandle = NULL;
+static StaticTask_t demoMoveControlTaskBuffer;
+static StackType_t demoMoveControlTaskStack[DEMO_MOVE_CONTROL_TASK_STACK_SIZE];
+TaskHandle_t demoMoveControlTaskHandle = NULL;
+static StaticTask_t gpioControlTaskBuffer;
+static StackType_t gpioControlTaskStack[GPIO_CONTROL_TASK_STACK_SIZE];
+TaskHandle_t gpioControlTaskHandle = NULL;
+static StaticTask_t wifiControlTaskBuffer;
+static StackType_t wifiControlTaskStack[WIFI_CONTROL_TASK_STACK_SIZE];
+TaskHandle_t wifiControlTaskHandle = NULL;
+TaskHandle_t setupTaskHandle = NULL;
 
-TaskHandle_t wifiSetupTaskHandle = NULL;
+// Semaphores and mutexes
+StaticSemaphore_t controlMutexBuffer;
+SemaphoreHandle_t controlMutexHandle = NULL;
 
 // Queue variables
-static StaticQueue_t demoMovePositionsQueueBuffer;
-static uint8_t demoMovePositionsQueueStorageArea[DEMO_MOVE_POSITIONS_QUEUE_LENGTH * DEMO_MOVE_POSITIONS_QUEUE_ITEM_SIZE];
-QueueHandle_t demoMovePositionsQueueHandle = NULL;
-
 static StaticQueue_t nextPositionQueueBuffer;
 static uint8_t nextPositionQueueStorageArea[NEXT_POSITION_QUEUE_LENGTH * NEXT_POSITION_QUEUE_ITEM_SIZE];
 QueueHandle_t nextPositionQueueHandle = NULL;
 
-// Other variables
-static s_MC_StepperMotor as_stepper_motors[KAR_MC_NUMBER_OF_MOTORS];
-static s_GEO_LimitSwitch as_limit_switches[KAR_MC_NUMBER_OF_MOTORS];
-static s_GEN_ProgramStatus s_program_status;
+// Event group variables
+static StaticEventGroup_t stateEventGroupBuffer;
+EventGroupHandle_t stateEventGroupHandle = NULL;
+static StaticEventGroup_t taskStartedEventGroupBuffer;
+EventGroupHandle_t taskStartedEventGroupHandle = NULL;
 
-static WifiController_ActionList_t wifiActionList;
+// Other variables
+e_MC_ErrorCode_t mcErrorCode = e_MC_ErrorCode_OK;
+bool homingState = false;
+volatile AppState_t appState = AppState_Idle;
+
+WifiController_ActionList_t wifiActionList;
 
 /* USER CODE END Variables */
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = { .name = "defaultTask", .stack_size = 128 * 4, .priority = (osPriority_t)osPriorityNormal, };
+/* Definitions for logState */
+osThreadId_t logStateHandle;
+uint32_t logStateTaskBuffer[ 512 ];
+osStaticThreadDef_t logStateTaskControlBlock;
+const osThreadAttr_t logState_attributes = {
+  .name = "logState",
+  .cb_mem = &logStateTaskControlBlock,
+  .cb_size = sizeof(logStateTaskControlBlock),
+  .stack_mem = &logStateTaskBuffer[0],
+  .stack_size = sizeof(logStateTaskBuffer),
+  .priority = (osPriority_t) osPriorityBelowNormal,
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-
-static void indicator_blinking_f(void *pvParameters);
-static void control_viaGPIO_f(void *pvParameters);
-static void demo_move_f(void *pvParameters);
-static void moveToPositionTask(void *pvParameters);
-void wifiSetupTask(void *pvParameters);
+void setupTask(void *pvParameters);
+void indicatorBlinkingTask(void *pvParameters);
 void wifiReceiveTask(void *pvParameters);
+void demoMoveControlTask(void *pvParameters);
+void gpioControlTask(void *pvParameters);
+void wifiControlTask(void *pvParameters);
 
-void handleButtonAction(const char *args);
+static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken);
+static void handleButtonAction(const char *args);
+static void homingSequence();
+static void moveToPosition(const PositionCyl_t *position);
 /* USER CODE END FunctionPrototypes */
 
-void StartDefaultTask(void *argument);
+void logStateTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -181,45 +196,45 @@ __weak void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTask
 /* USER CODE END 4 */
 
 /**
- * @brief  FreeRTOS initialization
- * @param  None
- * @retval None
- */
-void MX_FREERTOS_Init(void)
-{
-    /* USER CODE BEGIN Init */
+  * @brief  FreeRTOS initialization
+  * @param  None
+  * @retval None
+  */
+void MX_FREERTOS_Init(void) {
+  /* USER CODE BEGIN Init */
 
-    /* Positions for demo_move task (Simonyi conference demo program) */
-    const s_GEO_ToolPosition_Cylinder Pos1 = (s_GEO_ToolPosition_Cylinder){ .fi = 0, .z = 0, .r = 0 };
-    const s_GEO_ToolPosition_Cylinder Pos2 = (s_GEO_ToolPosition_Cylinder){ .fi = 4000, .z = 4000, .r = 400 };
-    const s_GEO_ToolPosition_Cylinder Pos3 = (s_GEO_ToolPosition_Cylinder){ .fi = 9000, .z = 7000, .r = 0 };
-    const s_GEO_ToolPosition_Cylinder Pos4 = (s_GEO_ToolPosition_Cylinder){ .fi = 13874, .z = 10000, .r = 900 };
-    const s_GEO_ToolPosition_Cylinder Pos5 = (s_GEO_ToolPosition_Cylinder){ .fi = 6000, .z = 5000, .r = 200 };
+  /* USER CODE END Init */
 
+  /* USER CODE BEGIN RTOS_MUTEX */
+    controlMutexHandle = xSemaphoreCreateMutexStatic(&controlMutexBuffer);
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+    /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+    /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
     /* Create the queue(s) */
-    demoMovePositionsQueueHandle = xQueueCreateStatic(
-            DEMO_MOVE_POSITIONS_QUEUE_LENGTH,
-            DEMO_MOVE_POSITIONS_QUEUE_ITEM_SIZE,
-            demoMovePositionsQueueStorageArea,
-            &demoMovePositionsQueueBuffer);
-    configASSERT(demoMovePositionsQueueHandle != NULL);
-
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos1), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos2), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos3), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos4), 0);
-    xQueueSend(demoMovePositionsQueueHandle, (void*)(&Pos5), 0);
-
     nextPositionQueueHandle = xQueueCreateStatic(
             NEXT_POSITION_QUEUE_LENGTH,
             NEXT_POSITION_QUEUE_ITEM_SIZE,
             nextPositionQueueStorageArea,
             &nextPositionQueueBuffer);
     configASSERT(nextPositionQueueHandle != NULL);
+  /* USER CODE END RTOS_QUEUES */
 
+  /* Create the thread(s) */
+  /* creation of logState */
+  logStateHandle = osThreadNew(logStateTask, NULL, &logState_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
     /* Create the task(s) */
     indicatorBlinkingTaskHandle = xTaskCreateStatic(
-            indicator_blinking_f,
+            indicatorBlinkingTask,
             "IndicatorBlinking",
             INDICATOR_BLINKING_TASK_STACK_SIZE,
             NULL,
@@ -228,218 +243,84 @@ void MX_FREERTOS_Init(void)
             &indicatorBlinkingTaskBuffer);
     configASSERT(indicatorBlinkingTaskHandle != NULL);
 
-    controlViaGpioTaskHandle = xTaskCreateStatic(
-            control_viaGPIO_f,
-            "ControlViaGpio",
-            CONTROL_VIA_GPIO_TASK_STACK_SIZE,
+    wifiReceiveTaskHandle = xTaskCreateStatic(
+            wifiReceiveTask,
+            "WifiReceive",
+            WIFI_RECEIVE_TASK_STACK_SIZE,
             NULL,
-            CONTROL_VIA_GPIO_TASK_PRIORITY,
-            controlViaGpioTaskStack,
-            &controlViaGpioTaskBuffer);
-    configASSERT(controlViaGpioTaskHandle != NULL);
+            WIFI_RECEIVE_TASK_PRIORITY,
+            wifiReceiveTaskStack,
+            &wifiReceiveTaskBuffer);
+    configASSERT(wifiReceiveTaskHandle != NULL);
 
-    demoMoveTaskHandle = xTaskCreateStatic(
-            demo_move_f,
-            "DemoMove",
-            DEMO_MOVE_TASK_STACK_SIZE,
+    demoMoveControlTaskHandle = xTaskCreateStatic(
+            demoMoveControlTask,
+            "DemoMoveControl",
+            DEMO_MOVE_CONTROL_TASK_STACK_SIZE,
             NULL,
-            DEMO_MOVE_TASK_PRIORITY,
-            demoMoveTaskStack,
-            &demoMoveTaskBuffer);
-    configASSERT(demoMoveTaskHandle != NULL);
-//
-//    moveToPositionTaskHandle = xTaskCreateStatic(
-//            moveToPositionTask,
-//            "MoveToPosition",
-//            MOVE_TO_POSITION_TASK_STACK_SIZE,
-//            NULL,
-//            MOVE_TO_POSITION_TASK_PRIORITY,
-//            moveToPositionTaskStack,
-//            &moveToPositionTaskBuffer);
-//    configASSERT(moveToPositionTaskHandle != NULL);
-//
-//    wifiReceiveTaskHandle = xTaskCreateStatic(
-//            wifiReceiveTask,
-//            "WifiReceive",
-//            WIFI_RECEIVE_TASK_STACK_SIZE,
-//            NULL,
-//            WIFI_RECEIVE_TASK_PRIORITY,
-//            wifiReceiveTaskStack,
-//            &wifiReceiveTaskBuffer);
-//    configASSERT(wifiReceiveTaskHandle != NULL);
-//
-//    configASSERT(xTaskCreate(
-//            wifiSetupTask,
-//            "WifiSetup",
-//            configMINIMAL_STACK_SIZE,
-//            NULL,
-//            TASK_PRIORITY_NORMAL,
-//            &wifiSetupTaskHandle) == pdPASS);
+            DEMO_MOVE_CONTROL_TASK_PRIORITY,
+            demoMoveControlTaskStack,
+            &demoMoveControlTaskBuffer);
+    configASSERT(demoMoveControlTaskHandle != NULL);
 
-    /* USER CODE END Init */
+    gpioControlTaskHandle = xTaskCreateStatic(
+            gpioControlTask,
+            "GpioControl",
+            GPIO_CONTROL_TASK_STACK_SIZE,
+            NULL,
+            GPIO_CONTROL_TASK_PRIORITY,
+            gpioControlTaskStack,
+            &gpioControlTaskBuffer);
+    configASSERT(gpioControlTaskHandle != NULL);
 
-    /* USER CODE BEGIN RTOS_MUTEX */
-    /* add mutexes, ... */
-    /* USER CODE END RTOS_MUTEX */
+    wifiControlTaskHandle = xTaskCreateStatic(
+            wifiControlTask,
+            "WifiControl",
+            WIFI_CONTROL_TASK_STACK_SIZE,
+            NULL,
+            WIFI_CONTROL_TASK_PRIORITY,
+            wifiControlTaskStack,
+            &wifiControlTaskBuffer);
+    configASSERT(wifiControlTaskHandle != NULL);
 
-    /* USER CODE BEGIN RTOS_SEMAPHORES */
-    /* add semaphores, ... */
-    /* USER CODE END RTOS_SEMAPHORES */
+    configASSERT(xTaskCreate(
+            setupTask,
+            "Setup",
+            configMINIMAL_STACK_SIZE,
+            NULL,
+            TASK_PRIORITY_NORMAL,
+            &setupTaskHandle) == pdPASS);
+  /* USER CODE END RTOS_THREADS */
 
-    /* USER CODE BEGIN RTOS_TIMERS */
-    /* start timers, add new ones, ... */
-    /* USER CODE END RTOS_TIMERS */
-
-    /* USER CODE BEGIN RTOS_QUEUES */
-    /* add queues, ... */
-    /* USER CODE END RTOS_QUEUES */
-
-    /* Create the thread(s) */
-    /* creation of defaultTask */
-    defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
-
-    /* USER CODE BEGIN RTOS_THREADS */
-    /* add threads, ... */
-    /* USER CODE END RTOS_THREADS */
-
-    /* USER CODE BEGIN RTOS_EVENTS */
-    /* add events, ... */
-    /* USER CODE END RTOS_EVENTS */
-
+  /* USER CODE BEGIN RTOS_EVENTS */
+    stateEventGroupHandle = xEventGroupCreateStatic(&stateEventGroupBuffer);
+    configASSERT(stateEventGroupHandle != NULL);
+    taskStartedEventGroupHandle = xEventGroupCreateStatic(&taskStartedEventGroupBuffer);
+    configASSERT(taskStartedEventGroupHandle != NULL);
+  /* USER CODE END RTOS_EVENTS */
 }
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_logStateTask */
 /**
- * @brief  Function implementing the defaultTask thread.
- * @param  argument: Not used
- * @retval None
- */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+  * @brief  Function implementing the logState thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_logStateTask */
+void logStateTask(void *argument)
 {
-    /* USER CODE BEGIN StartDefaultTask */
+    /* USER CODE BEGIN logStateTask */
     /* Infinite loop */
-    for (;;)
+    while (1)
     {
-        // TODO: Use this for printing some information to the serial port.
-        osDelay(1);
+        // TODO: Use this to log some information.
+        vTaskDelay(pdMS_TO_TICKS(5000));
     }
-    /* USER CODE END StartDefaultTask */
+    /* USER CODE END logStateTask */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-
-/*
- *===================================================================*
- * Function name: stepperMotor_init
- *-------------------------------------------------------------------
- * Description:
- * This function gives starting values to the as_stepper_motor array elements.
- *
- * INPUT: none
- *
- * OUTPUT: none
- *-------------------------------------------------------------------
- */
-void stepperMotor_init()
-{
-    if (!s_program_status.homing_state)
-    {
-        /* LIMIT SWITCH INIT */
-        as_limit_switches[KAR_MC_MOTORID_PHI].max_point = HAL_GPIO_ReadPin(
-                limswitch_fi_max_GPIO_Port,
-                limswitch_fi_max_Pin);
-        as_limit_switches[KAR_MC_MOTORID_PHI].null_point = HAL_GPIO_ReadPin(
-                limswich_fi_null_GPIO_Port,
-                limswich_fi_null_Pin);
-        as_limit_switches[KAR_MC_MOTORID_Z].max_point = HAL_GPIO_ReadPin(
-                limswitch_z_max_GPIO_Port,
-                limswitch_z_max_Pin);
-        as_limit_switches[KAR_MC_MOTORID_Z].null_point = HAL_GPIO_ReadPin(
-                limswitch_z_null_GPIO_Port,
-                limswitch_z_null_Pin);
-        as_limit_switches[KAR_MC_MOTORID_R].max_point = HAL_GPIO_ReadPin(
-                limswitch_r_max_GPIO_Port,
-                limswitch_r_max_Pin);
-        as_limit_switches[KAR_MC_MOTORID_R].null_point = HAL_GPIO_ReadPin(
-                limswitch_r_null_GPIO_Port,
-                limswitch_r_null_Pin);
-
-        /* MOTOR INIT */
-        as_stepper_motors[KAR_MC_MOTORID_PHI] = (s_MC_StepperMotor ){
-                .id = KAR_MC_MOTORID_PHI,
-                .dir = KAR_MC_DIR_UNDEFINED,
-                .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR,
-                .motorState = KAR_MC_STATE_STOPPED,
-                .currPos = U32_KAR_MC_MAXPOS_FI / 2, .nextPos = 0,
-                .TIM_CH = TIM_CHANNEL_2,    //PE11
-                .TIM = &htim1,
-                .ENA = (s_GEN_GPIO){
-                        .GPIO_Port = motor_fi_ENA_GPIO_Port,
-                        .GPIO_Pin = motor_fi_ENA_Pin
-                },
-                .DIR = (s_GEN_GPIO){
-                        .GPIO_Port = motor_fi_DIR_GPIO_Port,
-                        .GPIO_Pin = motor_fi_DIR_Pin
-                },
-        };
-        as_stepper_motors[KAR_MC_MOTORID_Z] = (s_MC_StepperMotor ){
-                .id = KAR_MC_MOTORID_Z,
-                .dir = KAR_MC_DIR_UNDEFINED,
-                .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR,
-                .motorState = KAR_MC_STATE_STOPPED,
-                .currPos = U32_KAR_MC_MAXPOS_Z / 2,
-                .nextPos = 0,
-                .TIM_CH = TIM_CHANNEL_1,    //PA0
-                .TIM = &htim2,
-                .ENA = (s_GEN_GPIO ){
-                        .GPIO_Port = motor_z_ENA_GPIO_Port,
-                        .GPIO_Pin = motor_z_ENA_Pin
-                },
-                .DIR = (s_GEN_GPIO){
-                        .GPIO_Port = motor_z_DIR_GPIO_Port,
-                        .GPIO_Pin = motor_z_DIR_Pin
-                },
-        };
-        as_stepper_motors[KAR_MC_MOTORID_R] = (s_MC_StepperMotor){
-                .id = KAR_MC_MOTORID_R,
-                .dir = KAR_MC_DIR_UNDEFINED,
-                .allowedDir = KAR_MC_ALLOWDIR_BOTHDIR,
-                .motorState = KAR_MC_STATE_STOPPED,
-                .currPos = U32_KAR_MC_MAXPOS_R / 2, .nextPos = 0,
-                .TIM_CH = TIM_CHANNEL_1,    //PA6
-                .TIM = &htim3,
-                .ENA = (s_GEN_GPIO){
-                        .GPIO_Port = motor_r_ENA_GPIO_Port,
-                        .GPIO_Pin = motor_r_ENA_Pin
-                },
-                .DIR = (s_GEN_GPIO){
-                        .GPIO_Port = motor_r_DIR_GPIO_Port,
-                        .GPIO_Pin = motor_r_DIR_Pin
-                },
-        };
-
-        /* Set the COM pins to GND */
-        HAL_GPIO_WritePin(motor_fi_COM_GPIO_Port, motor_fi_COM_Pin, 0);
-        HAL_GPIO_WritePin(motor_r_COM_GPIO_Port, motor_r_COM_Pin, 0);
-        HAL_GPIO_WritePin(motor_z_COM_GPIO_Port, motor_z_COM_Pin, 0);
-
-        /* Enable all motor */
-        HAL_GPIO_WritePin(
-                as_stepper_motors[KAR_MC_MOTORID_R].ENA.GPIO_Port,
-                as_stepper_motors[KAR_MC_MOTORID_R].ENA.GPIO_Pin,
-                1);  //enable = HIGH
-        HAL_GPIO_WritePin(
-                as_stepper_motors[KAR_MC_MOTORID_Z].ENA.GPIO_Port,
-                as_stepper_motors[KAR_MC_MOTORID_Z].ENA.GPIO_Pin,
-                1); // enable = HIGH
-        HAL_GPIO_WritePin(
-                as_stepper_motors[KAR_MC_MOTORID_PHI].ENA.GPIO_Port,
-                as_stepper_motors[KAR_MC_MOTORID_PHI].ENA.GPIO_Pin,
-                0);  // enable = GND
-    }
-}
 
 /*
  *===================================================================*
@@ -456,252 +337,117 @@ void stepperMotor_init()
  * OUTPUT: none
  *-------------------------------------------------------------------
  */
-void homing_sequence()
+static void homingSequence()
 {
-    if (!s_program_status.homing_state)
+    mcErrorCode = u8_MC_StartAllMotor_f(as_stepper_motors, KAR_MC_DIR_NEGATIVE);
+
+    if (mcErrorCode == e_MC_ErrorCode_OK)
     {
-        s_program_status.error_code = u8_MC_StartAllMotor_f(as_stepper_motors, KAR_MC_DIR_NEGATIVE);
+        uint8_t z = 0u, fi = 0u, r = 0u;
 
-        //Only run if the arm is not homed
-        if (0u == s_program_status.error_code)
+        // Waiting until all of the motors has reached their limit
+        while (!(r && fi && z))
         {
-            uint8_t z = 0u, fi = 0u, r = 0u;
-
-            //waiting untill all of the motors has reached their limit
-            while (!(r && fi && z))
+            //FI axis check
+            if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_PHI].null_point) && (0u == fi))
             {
-                //FI axis check
-                if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_PHI].null_point) && (0u == fi))
-                {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
-                    fi = 1;
-                }
-
-                //Z axis check
-                if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_Z].null_point) && (0u == z))
-                {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
-                    z = 1;
-                }
-
-                //R axis check
-                if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_R].null_point) && (0u == r))
-                {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
-                    r = 1;
-                }
+                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
+                fi = 1;
             }
 
-            s_program_status.homing_state = 1;
+            //Z axis check
+            if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_Z].null_point) && (0u == z))
+            {
+                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
+                z = 1;
+            }
+
+            //R axis check
+            if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_R].null_point) && (0u == r))
+            {
+                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
+                r = 1;
+            }
+        }
+
+        homingState = true;
+    }
+    else
+    {
+        Error_Handler();
+    }
+}
+
+static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken)
+{
+    *xHigherPriorityTaskWoken = pdFALSE;
+
+    // Change the app state and wake up the appropriate task.
+    switch (appState)
+    {
+    case AppState_Idle:
+        appState = AppState_DemoMoveControl;
+        xEventGroupSetBitsFromISR(
+                stateEventGroupHandle,
+                STATE_DEMO_MOVE_CONTROL_BIT,
+                xHigherPriorityTaskWoken);
+        break;
+    case AppState_DemoMoveControl:
+        appState = AppState_GpioControl;
+        xEventGroupSetBitsFromISR(
+                stateEventGroupHandle,
+                STATE_GPIO_CONTROL_BIT,
+                xHigherPriorityTaskWoken);
+        break;
+    case AppState_GpioControl:
+        appState = AppState_WifiControl;
+        xEventGroupSetBitsFromISR(
+                stateEventGroupHandle,
+                STATE_WIFI_CONTROL_BIT,
+                xHigherPriorityTaskWoken);
+        break;
+    case AppState_WifiControl:
+        appState = AppState_DemoMoveControl;
+        xEventGroupSetBitsFromISR(
+                stateEventGroupHandle,
+                STATE_DEMO_MOVE_CONTROL_BIT,
+                xHigherPriorityTaskWoken);
+        break;
+    default:
+        appState = AppState_Error;
+        break;
+    }
+}
+
+/*
+ *===================================================================*
+ * Function name: indicatorBlinkingTask
+ *-------------------------------------------------------------------
+ * Description:
+ * Using LEDs to indicate any software error on the board.
+ *-------------------------------------------------------------------
+ */
+void indicatorBlinkingTask(void *pvParameters)
+{
+    // Signal that the task is ready to run
+    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_INDICATOR_BLINKING_TASK_BIT);
+
+    while (1)
+    {
+        if (appState == AppState_Error)
+        {
+            HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, GPIO_PIN_SET);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, GPIO_PIN_RESET);
+            vTaskDelay(pdMS_TO_TICKS(200));
         }
         else
         {
-            Error_Handler();
+            HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, GPIO_PIN_SET);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, GPIO_PIN_RESET);
+            vTaskDelay(pdMS_TO_TICKS(500));
         }
-    }
-}
-
-/*
- *===================================================================*
- * Function name: indicator_blinking_f
- *-------------------------------------------------------------------
- * Description:
- * Using LEDs here to indicate any software error on the board.
- *
- * INPUT: none
- *
- * OUTPUT: none
- *-------------------------------------------------------------------
- */
-void indicator_blinking_f(void *pvParameters)
-{
-    /* Infinite loop */
-    for (;;)
-    {
-        if (L_NO_TASK_CODE == s_program_status.task_id)
-        {
-            HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, 1);
-            osDelay(200);
-            HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, 0);
-            osDelay(200);
-        }
-        else
-        {
-            HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, 1);
-            osDelay(1000);
-            HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, 0);
-            osDelay(1000);
-        }
-    }
-}
-
-/*
- *===================================================================*
- * Function name: control_viaGPIO_f
- *-------------------------------------------------------------------
- * Description:
- * This task lets the user to control the arm via the controller.
- *
- * INPUT: none
- *
- * OUTPUT: none
- *-------------------------------------------------------------------
- */
-void control_viaGPIO_f(void *pvParameters)
-{
-    s_GEN_GPIO r_pos_button = (s_GEN_GPIO){
-            .GPIO_Port = motor_r_positive_button_GPIO_Port,
-            .GPIO_Pin = motor_r_positive_button_Pin
-    };
-    s_GEN_GPIO r_neg_button = (s_GEN_GPIO){
-            .GPIO_Port = motor_r_negative_button_GPIO_Port,
-            .GPIO_Pin = motor_r_negative_button_Pin
-    };
-    s_GEN_GPIO fi_pos_button = (s_GEN_GPIO){
-            .GPIO_Port = motor_fi_positive_button_GPIO_Port,
-            .GPIO_Pin = motor_fi_positive_button_Pin
-    };
-    s_GEN_GPIO fi_neg_button = (s_GEN_GPIO){
-            .GPIO_Port = motor_fi_negative_button_GPIO_Port,
-            .GPIO_Pin = motor_fi_negative_button_Pin
-    };
-    s_GEN_GPIO z_pos_button = (s_GEN_GPIO){
-            .GPIO_Port = motor_z_positive_button_GPIO_Port,
-            .GPIO_Pin = motor_z_positive_button_Pin
-    };
-    s_GEN_GPIO z_neg_button = (s_GEN_GPIO){
-            .GPIO_Port = motor_z_negative_button_GPIO_Port,
-            .GPIO_Pin = motor_z_negative_button_Pin
-    };
-
-    stepperMotor_init();
-
-    //HOMING ----------------------------------------------------------------------------//
-    homing_sequence();
-
-    //START CONTROL TASK -----------------------------------------------------------------------//
-    /* Infinite contol loop */
-    for (;;)
-    {
-        //Switching beetwin modes
-        if (L_DEMO_TASK_CODE == s_program_status.task_id)
-        {
-            vTaskResume(demoMoveTaskHandle);
-            vTaskSuspend(NULL);
-        }
-
-        /* Axis control functions */
-        u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_R, as_limit_switches, r_pos_button, r_neg_button);
-        u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_PHI, as_limit_switches, fi_pos_button, fi_neg_button);
-        u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_limit_switches, z_pos_button, z_neg_button);
-    }
-}
-
-/*
- *===================================================================*
- * Function name: demo_move_f
- *-------------------------------------------------------------------
- * Description:
- * Purpose of this task is to show off, to show the kids how cool this huge pile of metal and cable is.
- * It doesn't do much: There is 5 positions declared and stored in a queue. The task takes the positions
- * and drives the arm to them in an infinite loop.
- *
- * INPUT: none
- *
- * OUTPUT: none
- *-------------------------------------------------------------------
- */
-void demo_move_f(void *pvParameters)
-{
-    // Indicating on the board, that this task has the control
-    HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, 1);
-
-    // Filling up the motors' struct with parameters
-    stepperMotor_init();
-
-    // Moving the arm to the zero position and initialize the coordinate system
-    homing_sequence();
-
-    s_GEO_ToolPosition_Cylinder next_pos = (s_GEO_ToolPosition_Cylinder ) { .fi = 0, .z = 0, .r = 0 };
-    int32_t z_steps_to_make = 0, r_steps_to_make = 0, fi_steps_to_make = 0;
-    int32_t z_tmp = 0, r_tmp = 0, fi_tmp = 0;
-    uint8_t z = 0u, fi = 0u, r = 0u;
-
-    /* Infinite control loop */
-    for (;;)
-    {
-        /* Switching beetwin modes */
-        if (L_GPIO_TASK_CODE == s_program_status.task_id)
-        {
-            vTaskResume(controlViaGpioTaskHandle);
-            vTaskSuspend(NULL);
-        }
-
-        if (xQueueReceive(demoMovePositionsQueueHandle, (void*)&next_pos, 1))
-        {
-            as_stepper_motors[KAR_MC_MOTORID_PHI].nextPos = next_pos.fi;
-            as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = next_pos.z;
-            as_stepper_motors[KAR_MC_MOTORID_R].nextPos = next_pos.r;
-
-            u8_MC_setAllMotorDir_TowardsDesiredPos_f(as_stepper_motors);
-
-            z_steps_to_make = i32_GEN_AbsoluteValue_f(
-                    as_stepper_motors[KAR_MC_MOTORID_Z].nextPos
-                    - as_stepper_motors[KAR_MC_MOTORID_Z].currPos);
-            r_steps_to_make = i32_GEN_AbsoluteValue_f(
-                    as_stepper_motors[KAR_MC_MOTORID_R].nextPos
-                    - as_stepper_motors[KAR_MC_MOTORID_R].currPos);
-            fi_steps_to_make = i32_GEN_AbsoluteValue_f(
-                    as_stepper_motors[KAR_MC_MOTORID_PHI].nextPos
-                    - as_stepper_motors[KAR_MC_MOTORID_PHI].currPos);
-
-            z_tmp = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
-            r_tmp = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
-            fi_tmp = as_stepper_motors[KAR_MC_MOTORID_PHI].currPos;
-
-            u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI, as_stepper_motors[KAR_MC_MOTORID_PHI].dir);
-            u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_R, as_stepper_motors[KAR_MC_MOTORID_R].dir);
-            u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_stepper_motors[KAR_MC_MOTORID_Z].dir);
-
-            /* Wait for tool to reach next position */
-            while (!(r && fi && z))
-            {
-                if ((r_steps_to_make <= i32_GEN_AbsoluteValue_f(r_tmp - as_stepper_motors[KAR_MC_MOTORID_R].currPos))
-                        || (as_limit_switches[KAR_MC_MOTORID_R].max_point
-                                && (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir))
-                        || (as_limit_switches[KAR_MC_MOTORID_R].null_point
-                                && (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir)))
-                {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
-                    r = 1;
-                }
-                if ((fi_steps_to_make <= i32_GEN_AbsoluteValue_f(fi_tmp - as_stepper_motors[KAR_MC_MOTORID_PHI].currPos))
-                        || (as_limit_switches[KAR_MC_MOTORID_PHI].max_point
-                                && (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_PHI].dir))
-                        || (as_limit_switches[KAR_MC_MOTORID_PHI].null_point
-                                && (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_PHI].dir)))
-                {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
-                    fi = 1;
-                }
-                if ((z_steps_to_make <= i32_GEN_AbsoluteValue_f(z_tmp - as_stepper_motors[KAR_MC_MOTORID_Z].currPos))
-                        || (as_limit_switches[KAR_MC_MOTORID_Z].max_point
-                                && (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir))
-                        || (as_limit_switches[KAR_MC_MOTORID_Z].null_point
-                                && (KAR_MC_DIR_NEGATIVE == as_stepper_motors[KAR_MC_MOTORID_Z].dir)))
-                {
-                    v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
-                    z = 1;
-                }
-            }
-
-            /* Stopping for a moment to make moving a little bit cooler */
-            osDelay(1000);
-            r = z = fi = 0;
-        }
-
-        /* Put the position back to the queue */
-        xQueueSend(demoMovePositionsQueueHandle, (void* )&next_pos, 0);
     }
 }
 
@@ -713,11 +459,11 @@ static inline bool check_move_finished(const s_MC_StepperMotor *sm, const s_GEO_
             || (ls->null_point && (sm->dir == KAR_MC_DIR_NEGATIVE));
 }
 
-static void move_to_position(s_GEO_ToolPosition_Cylinder position)
+static void moveToPosition(const PositionCyl_t *position)
 {
-    as_stepper_motors[KAR_MC_MOTORID_R].nextPos = position.r;
-    as_stepper_motors[KAR_MC_MOTORID_PHI].nextPos = position.fi;
-    as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = position.z;
+    as_stepper_motors[KAR_MC_MOTORID_R].nextPos = position->r;
+    as_stepper_motors[KAR_MC_MOTORID_PHI].nextPos = position->phi;
+    as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = position->z;
 
     u8_MC_setAllMotorDir_TowardsDesiredPos_f(as_stepper_motors);
 
@@ -726,11 +472,11 @@ static void move_to_position(s_GEO_ToolPosition_Cylinder position)
     u8_MC_StartMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_stepper_motors[KAR_MC_MOTORID_Z].dir);
 
     bool r_finished = false;
-    bool fi_finished = false;
+    bool phi_finished = false;
     bool z_finished = false;
 
     /* Wait for tool to reach next position */
-    while (!(r_finished && fi_finished && z_finished))
+    while (!(r_finished && phi_finished && z_finished))
     {
         if ((!r_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_R]), &(as_limit_switches[KAR_MC_MOTORID_R])))
         {
@@ -738,10 +484,10 @@ static void move_to_position(s_GEO_ToolPosition_Cylinder position)
             r_finished = true;
         }
 
-        if ((!fi_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_PHI]), &(as_limit_switches[KAR_MC_MOTORID_PHI])))
+        if ((!phi_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_PHI]), &(as_limit_switches[KAR_MC_MOTORID_PHI])))
         {
             v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
-            fi_finished = true;
+            phi_finished = true;
         }
 
         if ((!z_finished) && check_move_finished(&(as_stepper_motors[KAR_MC_MOTORID_Z]), &(as_limit_switches[KAR_MC_MOTORID_Z])))
@@ -754,17 +500,338 @@ static void move_to_position(s_GEO_ToolPosition_Cylinder position)
     }
 }
 
-void moveToPositionTask(void *pvParameters)
+static void send_new_position(const char *btn)
 {
+    PositionCyl_t position;
+    // Disable OS and interrupts while creating local copy of global data.
+    vPortEnterCritical();
+    position.r = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
+    position.phi = as_stepper_motors[KAR_MC_MOTORID_PHI].currPos;
+    position.z = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
+    vPortExitCritical();
+
+    const MC_Step_t d = 10;
+
+    if (strncmp(btn, "rp", 2))
+    {
+        position.r += d;
+        if (position.r > U32_KAR_MC_MAXPOS_R)
+        {
+            position.r = U32_KAR_MC_MAXPOS_R;
+        }
+    }
+    else if (strncmp(btn, "rn", 2))
+    {
+        position.r -= d;
+        if (position.r < 0)
+        {
+            position.r = 0;
+        }
+    }
+    else if (strncmp(btn, "fp", 2))
+    {
+        position.phi += d;
+        if (position.phi > U32_KAR_MC_MAXPOS_FI)
+        {
+            position.phi = U32_KAR_MC_MAXPOS_FI;
+        }
+    }
+    else if (strncmp(btn, "fn", 2))
+    {
+        position.phi -= d;
+        if (position.phi < 0)
+        {
+            position.phi = 0;
+        }
+    }
+    else if (strncmp(btn, "zp", 2))
+    {
+        position.z += d;
+        if (position.phi > U32_KAR_MC_MAXPOS_Z)
+        {
+            position.phi = U32_KAR_MC_MAXPOS_Z;
+        }
+    }
+    else if (strncmp(btn, "zn", 2))
+    {
+        position.z -= d;
+        if (position.phi < 0)
+        {
+            position.phi = 0;
+        }
+    }
+    else if (strncmp(btn, "hx", 2))
+    {
+        position.r = 0;
+        position.phi = 0;
+        position.z = 0;
+    }
+
+    xQueueSend(nextPositionQueueHandle, &position, 10);
+}
+
+static void handleButtonAction(const char *args)
+{
+    // Use the default GUI of the Wi-Fi controller which provides simple buttons for moving the
+    // motors of the robotarm.
+    char buffer[7] = { '\0' };
+    strcat(buffer, "- ");
+
+    const char *arg_text = "btn=";
+    const size_t arg_text_length = 4;
+
+    char *p = strstr(args, arg_text);
+    if ((p != NULL) && (strlen(p) >= (arg_text_length + 2)))
+    {
+        char btn[3] = { '\0' };
+        strncpy(btn, p + arg_text_length, 2);
+        send_new_position(btn);
+
+        strncat(buffer, p + arg_text_length, 2 + 1);
+    }
+    else
+    {
+        strncat(buffer, "xx", 2 + 1);
+    }
+
+    strcat(buffer, "\r\n");
+
+    HAL_UART_Transmit(USB_HUART, (uint8_t *)buffer, strlen(buffer), 200);
+}
+
+void setupTask(void *pvParameters)
+{
+    const char *ap_ssid = "indactrobot";
+    const char *ap_password = "pirosalma";
+
+    // Wait for tasks to be ready
+    xEventGroupWaitBits(
+            taskStartedEventGroupHandle,
+            TASK_STARTED_WIFI_RECEIVE_TASK_BIT,
+            pdFALSE,
+            pdTRUE,
+            portMAX_DELAY);
+
+    // ================================================================================
+    // Wi-Fi settings
+    // ================================================================================
+    // Wait for the module to start after power-up
+    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
+    configASSERT(WifiController_WifiController_ResetModule() == WifiController_ErrorCode_NONE);
+    // Wait for the module to reset
+    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
+
+    configASSERT(WifiController_WifiController_SetSsid(ap_ssid) == WifiController_ErrorCode_NONE);
+    configASSERT(WifiController_WifiController_SetPassword(ap_password) == WifiController_ErrorCode_NONE);
+
+    // Start the access point or station mode
+    configASSERT(WifiController_WifiController_BeginAccessPoint(10 * 1000) == WifiController_ErrorCode_NONE);
+
+    // ================================================================================
+    // Homing, then release control
+    // ================================================================================
+    homingSequence();
+    xSemaphoreGive(controlMutexHandle);
+
+    // ================================================================================
+    // Start application
+    // ================================================================================
+    appState = AppState_WifiControl;
+    xEventGroupSetBits(stateEventGroupHandle, STATE_WIFI_CONTROL_BIT);
+
+    vTaskDelete(NULL);
+}
+
+void wifiReceiveTask(void *pvParameters)
+{
+    WifiController_ActionList_Init(&wifiActionList);
+    WifiController_ActionList_Add(&wifiActionList, "/button", handleButtonAction);
+
+    configASSERT(WifiController_WifiController_Init(&wifiActionList) == WifiController_ErrorCode_NONE);
+
+    // Signal that the task is ready to run
+    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_RECEIVE_TASK_BIT);
+
     while (1)
     {
-        s_GEO_ToolPosition_Cylinder next_pos;
-        if (xQueueReceive(nextPositionQueueHandle, &next_pos, portMAX_DELAY) != pdTRUE)
+        WifiController_ErrorCode_t ec;
+        ec = WifiController_WifiController_Receive();
+        if (ec != WifiController_ErrorCode_NONE)
+        {
+            appState = AppState_Error;
+        }
+    }
+}
+
+/*
+ *===================================================================*
+ * Function name: demoMoveControlTask
+ *-------------------------------------------------------------------
+ * Description:
+ * Purpose of this task is to show off, to show the kids how cool this huge pile of metal and cable is.
+ * It doesn't do much: There is 5 positions declared and stored in a queue. The task takes the positions
+ * and drives the arm to them in an infinite loop.
+ *-------------------------------------------------------------------
+ */
+void demoMoveControlTask(void *pvParameters)
+{
+    // Demo positions
+    PositionCyl_t positions[5];
+    positions[0].r = 0;
+    positions[0].phi = 0;
+    positions[0].z = 0;
+    positions[1].r = 400;
+    positions[1].phi = 4000;
+    positions[1].z = 4000;
+    positions[2].r = 0;
+    positions[2].phi = 9000;
+    positions[2].z = 7000;
+    positions[3].r = 900;
+    positions[3].phi = 13874;
+    positions[3].z = 10000;
+    positions[4].r = 200;
+    positions[4].phi = 6000;
+    positions[4].z = 5000;
+
+    // Signal that the task is ready to run
+    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT);
+
+    // Only enter the loop if the control is not taken by any of the other tasks
+    xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+
+    size_t idx = 0;
+    while (1)
+    {
+        if (appState != AppState_DemoMoveControl)
+        {
+            // Give up the control
+            xSemaphoreGive(controlMutexHandle);
+
+            // Wait for the task specific wake-up event
+            xEventGroupWaitBits(
+                    stateEventGroupHandle,
+                    STATE_DEMO_MOVE_CONTROL_BIT,
+                    pdTRUE,
+                    pdTRUE,
+                    portMAX_DELAY);
+
+            // Wait for the other tasks to give up control and take it
+            xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+
+            // Always start from the first position
+            idx = 0;
+        }
+
+        moveToPosition(&positions[idx]);
+        idx = (idx + 1) % 5;
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+/*
+ *===================================================================*
+ * Function name: gpioControlTask
+ *-------------------------------------------------------------------
+ * Description:
+ * This task lets the user to control the arm via GPIO buttons
+ *-------------------------------------------------------------------
+ */
+void gpioControlTask(void *pvParameters)
+{
+    s_GEN_GPIO r_pos_button = {
+            .GPIO_Port = motor_r_positive_button_GPIO_Port,
+            .GPIO_Pin = motor_r_positive_button_Pin
+    };
+    s_GEN_GPIO r_neg_button = {
+            .GPIO_Port = motor_r_negative_button_GPIO_Port,
+            .GPIO_Pin = motor_r_negative_button_Pin
+    };
+    s_GEN_GPIO fi_pos_button = {
+            .GPIO_Port = motor_fi_positive_button_GPIO_Port,
+            .GPIO_Pin = motor_fi_positive_button_Pin
+    };
+    s_GEN_GPIO fi_neg_button = {
+            .GPIO_Port = motor_fi_negative_button_GPIO_Port,
+            .GPIO_Pin = motor_fi_negative_button_Pin
+    };
+    s_GEN_GPIO z_pos_button = {
+            .GPIO_Port = motor_z_positive_button_GPIO_Port,
+            .GPIO_Pin = motor_z_positive_button_Pin
+    };
+    s_GEN_GPIO z_neg_button = {
+            .GPIO_Port = motor_z_negative_button_GPIO_Port,
+            .GPIO_Pin = motor_z_negative_button_Pin
+    };
+
+    // Signal that the task is ready to run
+    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_GPIO_CONTROL_TASK_BIT);
+
+    // Only enter the loop if the control is not taken by any of the other tasks
+    xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+
+    while (1)
+    {
+        if (appState != AppState_GpioControl)
+        {
+            // Give up the control
+            xSemaphoreGive(controlMutexHandle);
+
+            // Wait for the task specific wake-up event
+            xEventGroupWaitBits(
+                    stateEventGroupHandle,
+                    STATE_GPIO_CONTROL_BIT,
+                    pdTRUE,
+                    pdTRUE,
+                    portMAX_DELAY);
+
+            // Wait for the other tasks to give up control and take it
+            xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+        }
+
+        /* Axis control functions */
+        u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_R, as_limit_switches, r_pos_button, r_neg_button);
+        u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_PHI, as_limit_switches, fi_pos_button, fi_neg_button);
+        u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_limit_switches, z_pos_button, z_neg_button);
+    }
+}
+
+void wifiControlTask(void *pvParameters)
+{
+    // Signal that the task is ready to run
+    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_CONTROL_TASK_BIT);
+
+    // Only enter the loop if the control is not taken by any of the other tasks
+    xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+
+    while (1)
+    {
+        if (appState != AppState_WifiControl)
+        {
+            // Give up the control
+            xSemaphoreGive(controlMutexHandle);
+
+            // Wait for the task specific wake-up event
+            xEventGroupWaitBits(
+                    stateEventGroupHandle,
+                    STATE_WIFI_CONTROL_BIT,
+                    pdTRUE,
+                    pdTRUE,
+                    portMAX_DELAY);
+
+            // Wait for the other tasks to give up control and take it
+            xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+
+            // Empty the queue before continuing
+            xQueueReset(nextPositionQueueHandle);
+        }
+
+        PositionCyl_t position;
+        if (xQueueReceive(nextPositionQueueHandle, &position, portMAX_DELAY) != pdTRUE)
         {
             // TODO: Signal error
             continue;
         }
-        move_to_position(next_pos);
+        moveToPosition(&position);
     }
 }
 
@@ -785,19 +852,12 @@ void moveToPositionTask(void *pvParameters)
  */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
     switch (GPIO_Pin)
     {
     case controller_mode_switch_Pin:
-        if (s_program_status.task_id)
-        {
-            s_program_status.task_id = L_GPIO_TASK_CODE;
-            HAL_GPIO_WritePin(controller_LED_GPIO_Port, controller_LED_Pin, s_program_status.task_id);
-        }
-        else
-        {
-            s_program_status.task_id = L_DEMO_TASK_CODE;
-            HAL_GPIO_WritePin(controller_LED_GPIO_Port, controller_LED_Pin, s_program_status.task_id);
-        }
+        changeAppStateFromISR(&xHigherPriorityTaskWoken);
         break;
     case limswitch_z_null_Pin:
         as_limit_switches[KAR_MC_MOTORID_Z].null_point = HAL_GPIO_ReadPin(limswitch_z_null_GPIO_Port, limswitch_z_null_Pin);
@@ -872,6 +932,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         }
         break;
     }
+
+    // If xHigherPriorityTaskWoken is now set to pdTRUE then a context switch should be requested.
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 /*
@@ -922,151 +985,6 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         else if (KAR_MC_DIR_POSITIVE == as_stepper_motors[KAR_MC_MOTORID_R].dir)
         {
             as_stepper_motors[KAR_MC_MOTORID_R].currPos++;
-        }
-    }
-}
-
-static void send_new_position(const char *btn)
-{
-    s_GEO_ToolPosition_Cylinder pos;
-    // Disable OS and interrupts while creating local copy of global data.
-    vPortEnterCritical();
-    pos.r = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
-    pos.fi = as_stepper_motors[KAR_MC_MOTORID_PHI].currPos;
-    pos.z = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
-    vPortExitCritical();
-
-    const int32_t d = 10;
-
-    if (strncmp(btn, "rp", 2))
-    {
-        pos.r += d;
-        if (pos.r > U32_KAR_MC_MAXPOS_R)
-        {
-            pos.r = U32_KAR_MC_MAXPOS_R;
-        }
-    }
-    else if (strncmp(btn, "rn", 2))
-    {
-        pos.r -= d;
-        if (pos.r < 0)
-        {
-            pos.r = 0;
-        }
-    }
-    else if (strncmp(btn, "fp", 2))
-    {
-        pos.fi += d;
-        if (pos.r > U32_KAR_MC_MAXPOS_FI)
-        {
-            pos.r = U32_KAR_MC_MAXPOS_FI;
-        }
-    }
-    else if (strncmp(btn, "fn", 2))
-    {
-        pos.fi -= d;
-        if (pos.r < 0)
-        {
-            pos.r = 0;
-        }
-    }
-    else if (strncmp(btn, "zp", 2))
-    {
-        pos.z += d;
-        if (pos.r > U32_KAR_MC_MAXPOS_Z)
-        {
-            pos.r = U32_KAR_MC_MAXPOS_Z;
-        }
-    }
-    else if (strncmp(btn, "zn", 2))
-    {
-        pos.z -= d;
-        if (pos.r < 0)
-        {
-            pos.r = 0;
-        }
-    }
-    else if (strncmp(btn, "hx", 2))
-    {
-        pos.r = 0;
-        pos.fi = 0;
-        pos.z = 0;
-    }
-
-    xQueueSend(nextPositionQueueHandle, &pos, pdMS_TO_TICKS(10));
-}
-
-void handleButtonAction(const char *args)
-{
-    // Use the default GUI of the Wi-Fi controller which provides simple buttons for moving the
-    // motors of the robotarm.
-    char buffer[7] = { '\0' };
-    strcat(buffer, "- ");
-
-    const char *arg_text = "btn=";
-    const size_t arg_text_length = 4;
-
-    char *p = strstr(args, arg_text);
-    if ((p != NULL) && (strlen(p) >= (arg_text_length + 2)))
-    {
-        char btn[3] = { '\0' };
-        strncpy(btn, p + arg_text_length, 2);
-        send_new_position(btn);
-
-        strncat(buffer, p + arg_text_length, 2 + 1);
-    }
-    else
-    {
-        strncat(buffer, "xx", 2 + 1);
-    }
-
-    strcat(buffer, "\r\n");
-
-    HAL_UART_Transmit(USB_HUART, (uint8_t *)buffer, strlen(buffer), 200);
-}
-
-void wifiSetupTask(void *pvParameters)
-{
-    const char *ap_ssid = "indactrobot";
-    const char *ap_password = "pirosalma";
-
-    // Wait for the module to start after power-up
-    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
-
-    // Wait for the receive task to start
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-    configASSERT(WifiController_WifiController_ResetModule() == WifiController_ErrorCode_NONE);
-
-    // Wait for the module to reset
-    vTaskDelay(pdMS_TO_TICKS(3 * 1000));
-
-    configASSERT(WifiController_WifiController_SetSsid(ap_ssid) == WifiController_ErrorCode_NONE);
-    configASSERT(WifiController_WifiController_SetPassword(ap_password) == WifiController_ErrorCode_NONE);
-
-    // Start the access point or station mode
-    configASSERT(WifiController_WifiController_BeginAccessPoint(10 * 1000) == WifiController_ErrorCode_NONE);
-
-    vTaskDelete(NULL);
-}
-
-void wifiReceiveTask(void *pvParameters)
-{
-    WifiController_ActionList_Init(&wifiActionList);
-    WifiController_ActionList_Add(&wifiActionList, "/button", handleButtonAction);
-
-    configASSERT(WifiController_WifiController_Init(&wifiActionList) == WifiController_ErrorCode_NONE);
-
-    // Notify the setup task about the start of receive
-    xTaskNotifyGive(wifiSetupTaskHandle);
-
-    while (1)
-    {
-        WifiController_ErrorCode_t ec;
-        ec = WifiController_WifiController_Receive();
-        if (ec != WifiController_ErrorCode_NONE)
-        {
-            // TODO: Handle error.
         }
     }
 }
