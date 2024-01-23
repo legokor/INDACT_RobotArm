@@ -1,4 +1,4 @@
-# INDACT robotkar programkódja
+# [outdated] INDACT robotkar programkódja
 
 ## Karcsi STM32CubeIDE projekt:
 A projekt egy STM32F429I-DISC1 Discovery board-ra készült. Az .ioc fájlban hozzáadtam a projekthez a Middleware/FREERTOS menüben az operációs rendszert.
