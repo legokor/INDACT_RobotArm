@@ -25,6 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "retarget_io.h"
 #include "stepper_motor.h"
 /* USER CODE END Includes */
 
@@ -84,7 +85,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+    initRetargetIo();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */

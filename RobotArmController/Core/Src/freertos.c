@@ -574,8 +574,7 @@ static void handleButtonAction(const char *args)
 {
     // Use the default GUI of the Wi-Fi controller which provides simple buttons for moving the
     // motors of the robotarm.
-    char buffer[7] = { '\0' };
-    strcat(buffer, "- ");
+    char btn[3] = { '\0' };
 
     const char *arg_text = "btn=";
     const size_t arg_text_length = 4;
@@ -583,20 +582,15 @@ static void handleButtonAction(const char *args)
     char *p = strstr(args, arg_text);
     if ((p != NULL) && (strlen(p) >= (arg_text_length + 2)))
     {
-        char btn[3] = { '\0' };
         strncpy(btn, p + arg_text_length, 2);
         send_new_position(btn);
-
-        strncat(buffer, p + arg_text_length, 2 + 1);
     }
     else
     {
-        strncat(buffer, "xx", 2 + 1);
+        strncpy(btn, "xx", 2);
     }
 
-    strcat(buffer, "\r\n");
-
-    HAL_UART_Transmit(USB_HUART, (uint8_t *)buffer, strlen(buffer), 200);
+    printf("- %s\r\n", btn);
 }
 
 void setupTask(void *pvParameters)
