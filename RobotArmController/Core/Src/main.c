@@ -25,6 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "logger.h"
 #include "retarget_io.h"
 #include "stepper_motor.h"
 /* USER CODE END Includes */
@@ -85,7 +86,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-    initRetargetIo();
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -99,6 +100,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
     // Initialize the motors and switches
     initStepperMotors();
+
+    initRetargetIo();
+    Logger_Init(200);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -200,6 +204,8 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+    HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, GPIO_PIN_SET);
+
   __disable_irq();
   while (1)
   {

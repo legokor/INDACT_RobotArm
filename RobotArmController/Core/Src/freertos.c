@@ -34,6 +34,7 @@
 #include "queue.h"
 #include "semphr.h"
 
+#include "logger.h"
 #include "rtos_priorities.h"
 #include "stepper_motor.h"
 #include "tim.h"
@@ -174,9 +175,12 @@ void gpioControlTask(void *pvParameters);
 void wifiControlTask(void *pvParameters);
 
 static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken);
+static bool debounce(uint32_t *last_tick, uint32_t tick_count);
 static void handleButtonAction(const char *args);
 static void homingSequence();
 static void moveToPosition(const PositionCyl_t *position);
+static void sendNewPosition(const char *btn);
+static void setupWifi();
 /* USER CODE END FunctionPrototypes */
 
 void logStateTask(void *argument);
@@ -313,8 +317,19 @@ void logStateTask(void *argument)
     /* Infinite loop */
     while (1)
     {
-        // TODO: Use this to log some information.
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        PositionCyl_t cp = { -1, -1, -1 };
+        vPortEnterCritical();
+        cp.r = as_stepper_motors[KAR_MC_MOTORID_R].currPos;
+        cp.phi = as_stepper_motors[KAR_MC_MOTORID_PHI].currPos;
+        cp.z = as_stepper_motors[KAR_MC_MOTORID_Z].currPos;
+        vPortExitCritical();
+        Logger_LogPrintf(
+                LogLevel_Info,
+                "position: (%ld, %ld, %ld), state: %d",
+                cp.r, cp.phi, cp.z,
+                appState);
+
+        vTaskDelay(pdMS_TO_TICKS(3000));
     }
     /* USER CODE END logStateTask */
 }
@@ -343,37 +358,41 @@ static void homingSequence()
 
     if (mcErrorCode == e_MC_ErrorCode_OK)
     {
-        uint8_t z = 0u, fi = 0u, r = 0u;
+        bool r = false, phi = false, z = false;
 
-        // Waiting until all of the motors has reached their limit
-        while (!(r && fi && z))
+        // Waiting until all of the motors have reached their limit
+        while (!(r && phi && z))
         {
-            //FI axis check
-            if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_PHI].null_point) && (0u == fi))
-            {
-                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
-                fi = 1;
-            }
-
-            //Z axis check
-            if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_Z].null_point) && (0u == z))
-            {
-                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
-                z = 1;
-            }
-
-            //R axis check
-            if ((GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_R].null_point) && (0u == r))
+            // R axis check
+            if ((!r) && (GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_R].null_point))
             {
                 v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_R);
-                r = 1;
+                r = true;
             }
+
+            // Phi axis check
+            if ((!phi) && (GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_PHI].null_point))
+            {
+                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_PHI);
+                phi = true;
+            }
+
+            // Z axis check
+            if ((!z) && (GPIO_PIN_SET == as_limit_switches[KAR_MC_MOTORID_Z].null_point))
+            {
+                v_MC_StopMotor_f(as_stepper_motors, KAR_MC_MOTORID_Z);
+                z = true;
+            }
+
+            vTaskDelay(10);
         }
 
         homingState = true;
+        Logger_LogPrintf(LogLevel_Info, "Homing complete.");
     }
     else
     {
+        Logger_LogPrintf(LogLevel_Error, "Homig error!");
         Error_Handler();
     }
 }
@@ -419,36 +438,15 @@ static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken)
     }
 }
 
-/*
- *===================================================================*
- * Function name: indicatorBlinkingTask
- *-------------------------------------------------------------------
- * Description:
- * Using LEDs to indicate any software error on the board.
- *-------------------------------------------------------------------
- */
-void indicatorBlinkingTask(void *pvParameters)
+static bool debounce(uint32_t *last_tick, uint32_t tick_count)
 {
-    // Signal that the task is ready to run
-    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_INDICATOR_BLINKING_TASK_BIT);
-
-    while (1)
+    uint32_t current_tick = HAL_GetTick();
+    if (current_tick - *last_tick > tick_count)
     {
-        if (appState == AppState_Error)
-        {
-            HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, GPIO_PIN_SET);
-            vTaskDelay(pdMS_TO_TICKS(200));
-            HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, GPIO_PIN_RESET);
-            vTaskDelay(pdMS_TO_TICKS(200));
-        }
-        else
-        {
-            HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, GPIO_PIN_SET);
-            vTaskDelay(pdMS_TO_TICKS(500));
-            HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, GPIO_PIN_RESET);
-            vTaskDelay(pdMS_TO_TICKS(500));
-        }
+        *last_tick = current_tick;
+        return true;
     }
+    return false;
 }
 
 static inline bool check_move_finished(const s_MC_StepperMotor *sm, const s_GEO_LimitSwitch *ls)
@@ -461,9 +459,11 @@ static inline bool check_move_finished(const s_MC_StepperMotor *sm, const s_GEO_
 
 static void moveToPosition(const PositionCyl_t *position)
 {
+    vPortEnterCritical();
     as_stepper_motors[KAR_MC_MOTORID_R].nextPos = position->r;
     as_stepper_motors[KAR_MC_MOTORID_PHI].nextPos = position->phi;
     as_stepper_motors[KAR_MC_MOTORID_Z].nextPos = position->z;
+    vPortExitCritical();
 
     u8_MC_setAllMotorDir_TowardsDesiredPos_f(as_stepper_motors);
 
@@ -496,11 +496,11 @@ static void moveToPosition(const PositionCyl_t *position)
             z_finished = true;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
-static void send_new_position(const char *btn)
+static void sendNewPosition(const char *btn)
 {
     PositionCyl_t position;
     // Disable OS and interrupts while creating local copy of global data.
@@ -583,21 +583,54 @@ static void handleButtonAction(const char *args)
     if ((p != NULL) && (strlen(p) >= (arg_text_length + 2)))
     {
         strncpy(btn, p + arg_text_length, 2);
-        send_new_position(btn);
+        sendNewPosition(btn);
     }
     else
     {
-        strncpy(btn, "xx", 2);
+        strcpy(btn, "xx");
     }
 
-    printf("- %s\r\n", btn);
+    Logger_LogPrintf(LogLevel_Info, "Button action: %s", btn);
 }
 
-void setupTask(void *pvParameters)
+static void setupWifi()
 {
     const char *ap_ssid = "indactrobot";
     const char *ap_password = "pirosalma";
 
+    // Wait for the module to start after power-up
+    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
+
+    if (WifiController_WifiController_ResetModule() != WifiController_ErrorCode_NONE)
+    {
+        Logger_LogPrintf(LogLevel_Error, "Wi-Fi reset error.");
+        return;
+    }
+
+    // Wait for the module to reset
+    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
+
+    if (WifiController_WifiController_SetSsid(ap_ssid) != WifiController_ErrorCode_NONE)
+    {
+        Logger_LogPrintf(LogLevel_Error, "Wi-Fi set SSID error.");
+        return;
+    }
+
+    if (WifiController_WifiController_SetPassword(ap_password) != WifiController_ErrorCode_NONE)
+    {
+        Logger_LogPrintf(LogLevel_Error, "Wi-Fi set password error.");
+        return;
+    }
+
+    if (WifiController_WifiController_BeginAccessPoint(10 * 1000) != WifiController_ErrorCode_NONE)
+    {
+        Logger_LogPrintf(LogLevel_Error, "Wi-Fi begin access point error.");
+        return;
+    }
+}
+
+void setupTask(void *pvParameters)
+{
     // Wait for tasks to be ready
     xEventGroupWaitBits(
             taskStartedEventGroupHandle,
@@ -609,17 +642,7 @@ void setupTask(void *pvParameters)
     // ================================================================================
     // Wi-Fi settings
     // ================================================================================
-    // Wait for the module to start after power-up
-    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
-    configASSERT(WifiController_WifiController_ResetModule() == WifiController_ErrorCode_NONE);
-    // Wait for the module to reset
-    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
-
-    configASSERT(WifiController_WifiController_SetSsid(ap_ssid) == WifiController_ErrorCode_NONE);
-    configASSERT(WifiController_WifiController_SetPassword(ap_password) == WifiController_ErrorCode_NONE);
-
-    // Start the access point or station mode
-    configASSERT(WifiController_WifiController_BeginAccessPoint(10 * 1000) == WifiController_ErrorCode_NONE);
+    setupWifi();
 
     // ================================================================================
     // Homing, then release control
@@ -630,10 +653,43 @@ void setupTask(void *pvParameters)
     // ================================================================================
     // Start application
     // ================================================================================
-    appState = AppState_WifiControl;
-    xEventGroupSetBits(stateEventGroupHandle, STATE_WIFI_CONTROL_BIT);
+    appState = AppState_DemoMoveControl;
+    xEventGroupSetBits(stateEventGroupHandle, STATE_DEMO_MOVE_CONTROL_BIT);
 
     vTaskDelete(NULL);
+}
+
+/*
+ *===================================================================*
+ * Function name: indicatorBlinkingTask
+ *-------------------------------------------------------------------
+ * Description:
+ * Using LEDs to indicate any software error on the board.
+ *-------------------------------------------------------------------
+ */
+void indicatorBlinkingTask(void *pvParameters)
+{
+    // Signal that the task is ready to run
+    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_INDICATOR_BLINKING_TASK_BIT);
+    Logger_LogPrintf(LogLevel_Info, "Ready to run.");
+
+    while (1)
+    {
+        if (appState == AppState_Error)
+        {
+            HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, GPIO_PIN_SET);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            HAL_GPIO_WritePin(RedLed_LD4_GPIO_Port, RedLed_LD4_Pin, GPIO_PIN_RESET);
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+        else
+        {
+            HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, GPIO_PIN_SET);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            HAL_GPIO_WritePin(GreenLed_LD3_GPIO_Port, GreenLed_LD3_Pin, GPIO_PIN_RESET);
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
 }
 
 void wifiReceiveTask(void *pvParameters)
@@ -645,15 +701,11 @@ void wifiReceiveTask(void *pvParameters)
 
     // Signal that the task is ready to run
     xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_RECEIVE_TASK_BIT);
+    Logger_LogPrintf(LogLevel_Info, "Ready to run.");
 
     while (1)
     {
-        WifiController_ErrorCode_t ec;
-        ec = WifiController_WifiController_Receive();
-        if (ec != WifiController_ErrorCode_NONE)
-        {
-            appState = AppState_Error;
-        }
+        WifiController_WifiController_Receive();
     }
 }
 
@@ -689,9 +741,11 @@ void demoMoveControlTask(void *pvParameters)
 
     // Signal that the task is ready to run
     xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT);
+    Logger_LogPrintf(LogLevel_Info, "Ready to run.");
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+    Logger_LogPrintf(LogLevel_Info, "Take control.");
 
     size_t idx = 0;
     while (1)
@@ -700,6 +754,7 @@ void demoMoveControlTask(void *pvParameters)
         {
             // Give up the control
             xSemaphoreGive(controlMutexHandle);
+            Logger_LogPrintf(LogLevel_Info, "Give control.");
 
             // Wait for the task specific wake-up event
             xEventGroupWaitBits(
@@ -708,9 +763,11 @@ void demoMoveControlTask(void *pvParameters)
                     pdTRUE,
                     pdTRUE,
                     portMAX_DELAY);
+            Logger_LogPrintf(LogLevel_Info, "Wake-up.");
 
             // Wait for the other tasks to give up control and take it
             xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+            Logger_LogPrintf(LogLevel_Info, "Take control.");
 
             // Always start from the first position
             idx = 0;
@@ -759,9 +816,11 @@ void gpioControlTask(void *pvParameters)
 
     // Signal that the task is ready to run
     xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_GPIO_CONTROL_TASK_BIT);
+    Logger_LogPrintf(LogLevel_Info, "Ready to run.");
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+    Logger_LogPrintf(LogLevel_Info, "Take control.");
 
     while (1)
     {
@@ -769,6 +828,7 @@ void gpioControlTask(void *pvParameters)
         {
             // Give up the control
             xSemaphoreGive(controlMutexHandle);
+            Logger_LogPrintf(LogLevel_Info, "Give control.");
 
             // Wait for the task specific wake-up event
             xEventGroupWaitBits(
@@ -777,15 +837,19 @@ void gpioControlTask(void *pvParameters)
                     pdTRUE,
                     pdTRUE,
                     portMAX_DELAY);
+            Logger_LogPrintf(LogLevel_Info, "Wake-up.");
 
             // Wait for the other tasks to give up control and take it
             xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+            Logger_LogPrintf(LogLevel_Info, "Take control.");
         }
 
         /* Axis control functions */
         u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_R, as_limit_switches, r_pos_button, r_neg_button);
         u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_PHI, as_limit_switches, fi_pos_button, fi_neg_button);
         u8_MC_ControlMotor_viaGPIO_f(as_stepper_motors, KAR_MC_MOTORID_Z, as_limit_switches, z_pos_button, z_neg_button);
+
+        vTaskDelay(10);
     }
 }
 
@@ -793,9 +857,11 @@ void wifiControlTask(void *pvParameters)
 {
     // Signal that the task is ready to run
     xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_CONTROL_TASK_BIT);
+    Logger_LogPrintf(LogLevel_Info, "Ready to run.");
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+    Logger_LogPrintf(LogLevel_Info, "Take control.");
 
     while (1)
     {
@@ -803,6 +869,7 @@ void wifiControlTask(void *pvParameters)
         {
             // Give up the control
             xSemaphoreGive(controlMutexHandle);
+            Logger_LogPrintf(LogLevel_Info, "Give control.");
 
             // Wait for the task specific wake-up event
             xEventGroupWaitBits(
@@ -811,21 +878,25 @@ void wifiControlTask(void *pvParameters)
                     pdTRUE,
                     pdTRUE,
                     portMAX_DELAY);
+            Logger_LogPrintf(LogLevel_Info, "Wake-up.");
 
             // Wait for the other tasks to give up control and take it
             xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+            Logger_LogPrintf(LogLevel_Info, "Take control.");
 
             // Empty the queue before continuing
             xQueueReset(nextPositionQueueHandle);
         }
 
         PositionCyl_t position;
-        if (xQueueReceive(nextPositionQueueHandle, &position, portMAX_DELAY) != pdTRUE)
+        if (xQueueReceive(nextPositionQueueHandle, &position, 200) == pdTRUE)
         {
-            // TODO: Signal error
-            continue;
+            Logger_LogPrintf(
+                    LogLevel_Info,
+                    "Position received: (%ld, %ld, %ld).",
+                    position.r, position.phi, position.z);
+            moveToPosition(&position);
         }
-        moveToPosition(&position);
     }
 }
 
@@ -851,7 +922,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     switch (GPIO_Pin)
     {
     case controller_mode_switch_Pin:
-        changeAppStateFromISR(&xHigherPriorityTaskWoken);
+        static uint32_t last_tick = 0;
+        if (debounce(&last_tick, 200))
+        {
+            changeAppStateFromISR(&xHigherPriorityTaskWoken);
+        }
         break;
     case limswitch_z_null_Pin:
         as_limit_switches[KAR_MC_MOTORID_Z].null_point = HAL_GPIO_ReadPin(limswitch_z_null_GPIO_Port, limswitch_z_null_Pin);
