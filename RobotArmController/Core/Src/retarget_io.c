@@ -4,7 +4,7 @@
 
 #include "usart.h"
 
-#define USB_HUART (&huart2)
+#define USB_HUART (&huart3)
 
 int __io_putchar(int ch)
 {

@@ -25,7 +25,9 @@
  * 																												*
  *****************************************************************************************************************/
 
-#include "stm32f4xx_hal.h"
+#include <stdbool.h>
+
+#include "stm32f7xx_hal.h"
 
 /****************************************************************************************************************
  * 																												*
@@ -46,9 +48,9 @@
  */
 typedef struct
 {
-	GPIO_PinState max_point;
-	GPIO_PinState null_point;
-}s_GEO_LimitSwitch;
+	bool max_point;
+	bool null_point;
+} s_GEO_LimitSwitch;
 
 /*
  * The arm moves in a cylindrical coordinate system.

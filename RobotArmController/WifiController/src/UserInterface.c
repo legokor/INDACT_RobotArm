@@ -6,15 +6,13 @@
 
 #include "cJSON/cJSON.h"
 
-static bool check_value_init(const WifiController_UserInterface_t *this);
-
 bool WifiController_UserInterface_Init(WifiController_UserInterface_t *this)
 {
     this->title = NULL;
     this->pageHeader = NULL;
-    this->textFieldTop = NULL;
-    this->textFieldBottom = NULL;
-    this->controlTable = NULL;
+    WifiController_TextField_Init(&this->textFieldTop);
+    WifiController_TextField_Init(&this->textFieldBottom);
+    WifiController_ControlTable_Init(&this->controlTable);
     this->userScript = NULL;
     return true;
 }
@@ -23,6 +21,9 @@ void WifiController_UserInterface_Delete(WifiController_UserInterface_t *this)
 {
     vPortFree(this->title);
     vPortFree(this->pageHeader);
+    WifiController_TextField_Delete(&this->textFieldTop);
+    WifiController_TextField_Delete(&this->textFieldBottom);
+    WifiController_ControlTable_Delete(&this->controlTable);
     vPortFree(this->userScript);
 }
 
@@ -47,24 +48,6 @@ bool WifiController_UserInterface_SetPageHeader(WifiController_UserInterface_t *
         return false;
     }
     strcpy(this->pageHeader, value);
-    return true;
-}
-
-bool WifiController_UserInterface_SetTextFieldTop(WifiController_UserInterface_t *this, const WifiController_TextField_t *value)
-{
-    this->textFieldTop = value;
-    return true;
-}
-
-bool WifiController_UserInterface_SetTextFieldBottom(WifiController_UserInterface_t *this, const WifiController_TextField_t *value)
-{
-    this->textFieldBottom = value;
-    return true;
-}
-
-bool WifiController_UserInterface_SetControlTable(WifiController_UserInterface_t *this, const WifiController_ControlTable_t *value)
-{
-    this->controlTable = value;
     return true;
 }
 
@@ -157,23 +140,23 @@ int WifiController_UserInterface_GetConfigurationJSON(const WifiController_UserI
     cJSON_AddItemToObject(root, "title", cJSON_CreateString(this->title));
     cJSON_AddItemToObject(root, "pageHeader", cJSON_CreateString(this->pageHeader));
 
-    for (int i = 0; i < WifiController_TextField_GetSize(this->textFieldTop); ++i)
+    for (int i = 0; i < WifiController_TextField_GetSize(&this->textFieldTop); ++i)
     {
-        cJSON_AddItemToArray(textFieldTop, cJSON_CreateString(WifiController_TextField_At(this->textFieldTop, i)));
+        cJSON_AddItemToArray(textFieldTop, cJSON_CreateString(WifiController_TextField_At(&this->textFieldTop, i)));
     }
     cJSON_AddItemToObject(root, "textFieldTop", textFieldTop);
 
-    for (int i = 0; i < WifiController_TextField_GetSize(this->textFieldBottom); ++i)
+    for (int i = 0; i < WifiController_TextField_GetSize(&this->textFieldBottom); ++i)
     {
-        cJSON_AddItemToArray(textFieldBottom, cJSON_CreateString(WifiController_TextField_At(this->textFieldBottom, i)));
+        cJSON_AddItemToArray(textFieldBottom, cJSON_CreateString(WifiController_TextField_At(&this->textFieldBottom, i)));
     }
     cJSON_AddItemToObject(root, "textFieldBottom", textFieldBottom);
 
-    for (int i = 0; i < WifiController_ControlTable_Size(this->controlTable); ++i)
+    for (int i = 0; i < WifiController_ControlTable_GetSize(&this->controlTable); ++i)
     {
         cJSON *control = cJSON_CreateObject();
-        cJSON_AddItemToObject(control, "label", cJSON_CreateString(WifiController_ControlTable_Get(this->controlTable, i)->label));
-        cJSON_AddItemToObject(control, "control", cJSON_CreateString(WifiController_ControlTable_Get(this->controlTable, i)->control));
+        cJSON_AddItemToObject(control, "label", cJSON_CreateString(WifiController_ControlTable_At(&this->controlTable, i)->label));
+        cJSON_AddItemToObject(control, "control", cJSON_CreateString(WifiController_ControlTable_At(&this->controlTable, i)->control));
         cJSON_AddItemToArray(controlTable, control);
     }
     cJSON_AddItemToObject(root, "controlTable", controlTable);
@@ -254,23 +237,23 @@ int WifiController_UserInterface_GetDataJSON(const WifiController_UserInterface_
     cJSON *textFieldBottom = cJSON_CreateArray();
     cJSON *controlTable = cJSON_CreateArray();
 
-    for (int i = 0; i < WifiController_TextField_GetSize(this->textFieldTop); ++i)
+    for (int i = 0; i < WifiController_TextField_GetSize(&this->textFieldTop); ++i)
     {
-        cJSON_AddItemToArray(textFieldTop, cJSON_CreateString(WifiController_TextField_At(this->textFieldTop, i)));
+        cJSON_AddItemToArray(textFieldTop, cJSON_CreateString(WifiController_TextField_At(&this->textFieldTop, i)));
     }
     cJSON_AddItemToObject(root, "textFieldTop", textFieldTop);
 
-    for (int i = 0; i < WifiController_TextField_GetSize(this->textFieldBottom); ++i)
+    for (int i = 0; i < WifiController_TextField_GetSize(&this->textFieldBottom); ++i)
     {
-        cJSON_AddItemToArray(textFieldBottom, cJSON_CreateString(WifiController_TextField_At(this->textFieldBottom, i)));
+        cJSON_AddItemToArray(textFieldBottom, cJSON_CreateString(WifiController_TextField_At(&this->textFieldBottom, i)));
     }
     cJSON_AddItemToObject(root, "textFieldBottom", textFieldBottom);
 
-    for (int i = 0; i < WifiController_ControlTable_Size(this->controlTable); ++i)
+    for (int i = 0; i < WifiController_ControlTable_GetSize(&this->controlTable); ++i)
     {
         cJSON *control = cJSON_CreateObject();
-        cJSON_AddItemToObject(control, "label", cJSON_CreateString(WifiController_ControlTable_Get(this->controlTable, i)->label));
-        cJSON_AddItemToObject(control, "control", cJSON_CreateString(WifiController_ControlTable_Get(this->controlTable, i)->control));
+        cJSON_AddItemToObject(control, "label", cJSON_CreateString(WifiController_ControlTable_At(&this->controlTable, i)->label));
+        cJSON_AddItemToObject(control, "control", cJSON_CreateString(WifiController_ControlTable_At(&this->controlTable, i)->control));
         cJSON_AddItemToArray(controlTable, control);
     }
     cJSON_AddItemToObject(root, "controlTable", controlTable);
@@ -285,11 +268,4 @@ int WifiController_UserInterface_GetDataJSON(const WifiController_UserInterface_
 
     cJSON_Delete(root);
     return length;
-}
-
-static bool check_value_init(const WifiController_UserInterface_t *this)
-{
-    return (this->title == NULL) || (this->pageHeader == NULL) || (this->textFieldTop == NULL)
-            || (this->textFieldBottom == NULL) || (this->controlTable == NULL)
-            || (this->userScript == NULL);
 }

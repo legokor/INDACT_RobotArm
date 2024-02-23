@@ -1,15 +1,15 @@
 {
     "configurations": [
         {
-            "name": "STM32F429xx",
+            "name": "STM32F746xx",
             "includePath": [
                 "${workspaceFolder}/Core/Inc",
-                "${workspaceFolder}/Drivers/STM32F4xx_HAL_Driver/Inc",
-                "${workspaceFolder}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy",
-                "${workspaceFolder}/Drivers/CMSIS/Device/ST/STM32F4xx/Include",
+                "${workspaceFolder}/Drivers/STM32F7xx_HAL_Driver/Inc",
+                "${workspaceFolder}/Drivers/STM32F7xx_HAL_Driver/Inc/Legacy",
+                "${workspaceFolder}/Drivers/CMSIS/Device/ST/STM32F7xx/Include",
                 "${workspaceFolder}/Drivers/CMSIS/Include",
                 "${workspaceFolder}/Middlewares/Third_Party/FreeRTOS/Source/include",
-                "${workspaceFolder}/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F",
+                "${workspaceFolder}/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1",
                 "${workspaceFolder}/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2",
                 "${workspaceFolder}/Libraries",
                 "${workspaceFolder}/MotorControl/inc",
@@ -20,8 +20,7 @@
                 "DEBUG",
                 "STM32F429xx",
                 "USE_HAL_DRIVER"
-            ],
-            "cStandard": "gnu11"
+            ]
         }
     ],
     "version": 4

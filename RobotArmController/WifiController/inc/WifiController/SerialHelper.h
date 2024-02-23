@@ -11,7 +11,7 @@
  * 
  * @note This function must be called before any other function in this file.
  */
-WifiController_ErrorCode_t WifiController_SerialHelper_Init();
+WC_ErrorCode_t WifiController_SerialHelper_Init();
 
 /**
  * @brief Deletes the serial helper.
@@ -26,7 +26,7 @@ void WifiController_SerialHelper_Delete();
  * 
  * @note This function is blocking.
  */
-WifiController_ErrorCode_t WifiController_SerialHelper_SendMessage(const char *message);
+WC_ErrorCode_t WifiController_SerialHelper_SendMessage(const char *message);
 
 /**
  * @brief Reads a message from the serial port.
@@ -37,7 +37,7 @@ WifiController_ErrorCode_t WifiController_SerialHelper_SendMessage(const char *m
  * 
  * @note This function is blocking.
  */
-WifiController_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer, int max_length);
+WC_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer, int max_length);
 
 /**
  * @brief Callback function that is called when a byte is received through the serial port.

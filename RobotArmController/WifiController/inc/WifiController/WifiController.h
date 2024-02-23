@@ -12,83 +12,88 @@
  * @details
  * Example use:
  *
- * WifiController_ActionList_t actionList;
- *
  * void handleButtonAction(const char *args)
  * {
- *     // Use the default GUI of the Wi-F controller which provides simple buttons for moving the motors
+ *     // Use the default GUI of the Wi-Fi controller which provides simple buttons for moving the motors
  *     // of the robotarm.
- *     char buffer[7] = {'\0'};
- *     strcat(buffer, "- ");
+ *     char btn[3] = { '\0' };
  *
  *     const char *arg_text = "btn=";
  *     const size_t arg_text_length = 4;
  *
  *     char *p = strstr(args, arg_text);
- *     if ((p == NULL) || (strlen(p) < (arg_text_length + 2)))
+ *     if ((p != NULL) && (strlen(p) >= (arg_text_length + 2)))
  *     {
- *         strncat(buffer, "xx", 2 + 1);
+ *         strncpy(btn, p + arg_text_length, 2);
+ *         sendNewPosition(btn);
  *     }
  *     else
  *     {
- *         strncat(buffer, p + arg_text_length, 2 + 1);
+ *         strcpy(btn, "xx");
  *     }
  *
- *     strcat(buffer, "\r\n");
- *
- *     HAL_UART_Transmit(USB_HUART, (uint8_t *)buffer, strlen(buffer), 200);
+ *     logInfo("Button action: %s", btn);
  * }
  *
- * void WifiSetupTask(void *pvParameters)
+ * // Call after receive task is started.
+ * void setupWifi()
  * {
- *     const char *ap_ssid = "indact_wific";
+ *     const char *ap_ssid = "indactrobot";
  *     const char *ap_password = "pirosalma";
  *
- *     // 1.) Define actions
- *     WifiController_ActionList_Init(&actionList);
- *     WifiController_ActionList_Add(&actionList, "/button", handleButtonAction);
+ *     // Wait for the module to start after power-up
+ *     vTaskDelay(pdMS_TO_TICKS(2 * 1000));
  *
- *     // 2.) Call WifiController initialization function
- *     configASSERT(WifiController_WifiController_Init(&actionList) == WifiController_ErrorCode_NONE);
+ *     if (WifiController_WifiController_ResetModule() != WC_ErrorCode_NONE)
+ *     {
+ *         logError("Wi-Fi reset error.");
+ *         return;
+ *     }
  *
- *     // 3.) Start the receiver task
- *     xTaskCreate(WifiReceiveTask, "wifi_receive", configMINIMAL_STACK_SIZE * 4, NULL, configMAX_PRIORITIES / 4 * 3, NULL);
- *
- *     // 3.) Set parameters for the Wi-Fi module
- *     configASSERT(WifiController_WifiController_ResetModule() == WifiController_ErrorCode_NONE);
  *     // Wait for the module to reset
- *     vTaskDelay(pdMS_TO_TICKS(3 * 1000));
- *     configASSERT(WifiController_WifiController_SetSsid(ap_ssid) == WifiController_ErrorCode_NONE);
- *     configASSERT(WifiController_WifiController_SetPassword(ap_password) == WifiController_ErrorCode_NONE);
+ *     vTaskDelay(pdMS_TO_TICKS(2 * 1000));
  *
- *     // 4.) Start the access point or station mode
- *     configASSERT(WifiController_WifiController_BeginAccessPoint(10 * 1000) == WifiController_ErrorCode_NONE);
+ *     if (WifiController_WifiController_SetSsid(ap_ssid) != WC_ErrorCode_NONE)
+ *     {
+ *         logError("Wi-Fi set SSID error.");
+ *         return;
+ *     }
  *
- *     vTaskDelete(NULL);
+ *     if (WifiController_WifiController_SetPassword(ap_password) != WC_ErrorCode_NONE)
+ *     {
+ *         logError("Wi-Fi set password error.");
+ *         return;
+ *     }
+ *
+ *     if (WifiController_WifiController_BeginAccessPoint(10 * 1000) != WC_ErrorCode_NONE)
+ *     {
+ *         logError("Wi-Fi begin access point error.");
+ *         return;
+ *     }
  * }
  *
- * void WifiReceiveTask(void *pvParameters)
+ * void wifiReceiveTask(void *pvParameters)
  * {
+ *     configASSERT(WifiController_WifiController_Init() == WC_ErrorCode_NONE);
+ *
+ *     WifiController_ActionList_t *action_list = WifiController_WifiController_GetActionList();
+ *     WifiController_ActionList_Add(action_list, "/button", handleButtonAction);
+ *
  *     while (1)
  *     {
- *         WifiController_ErrorCode_t e = WifiController_WifiController_Receive();
- *         if (e != WifiController_ErrorCode_NONE)
- *         {
- *             // Handle error.
- *         }
+ *         WifiController_WifiController_Receive();
  *     }
  * }
  */
 
 /**
  * @brief Initializes the WifiController.
- * 
- * @param action_list The action list.
+ *
  * @return Error code.
- * 
+ *
  * @note This function must be called before any other function in this file.
  */
-WifiController_ErrorCode_t WifiController_WifiController_Init(WifiController_ActionList_t *action_list);
+WC_ErrorCode_t WifiController_WifiController_Init();
 
 /**
  * @brief Deletes the WifiController.
@@ -117,12 +122,18 @@ const char* WifiController_WifiController_GetPassword();
 WifiController_IpAddress_t* WifiController_WifiController_GetIPAddress();
 
 /**
+ * @brief Get the pointer of the action list of the Wi-Fi controller.
+ * @return Pointer to the action list of the Wi-Fi controller.
+ */
+WifiController_ActionList_t *WifiController_WifiController_GetActionList();
+
+/**
  * @brief Set the SSID.
  * 
  * @param value The SSID to set.
  * @return Error code.
  */
-WifiController_ErrorCode_t WifiController_WifiController_SetSsid(const char *value);
+WC_ErrorCode_t WifiController_WifiController_SetSsid(const char *value);
 
 /**
  * @brief Set the password.
@@ -130,14 +141,14 @@ WifiController_ErrorCode_t WifiController_WifiController_SetSsid(const char *val
  * @param value The password to set.
  * @return Error code.
  */
-WifiController_ErrorCode_t WifiController_WifiController_SetPassword(const char *value);
+WC_ErrorCode_t WifiController_WifiController_SetPassword(const char *value);
 
 /**
  * @brief Reset the module.
  * 
  * @return Error code.
  */
-WifiController_ErrorCode_t WifiController_WifiController_ResetModule();
+WC_ErrorCode_t WifiController_WifiController_ResetModule();
 
 /**
  * @brief Begin the station mode.
@@ -145,7 +156,7 @@ WifiController_ErrorCode_t WifiController_WifiController_ResetModule();
  * @param timeout_ms The timeout in milliseconds.
  * @return Error code.
  */
-WifiController_ErrorCode_t WifiController_WifiController_BeginStation(int timeout_ms);
+WC_ErrorCode_t WifiController_WifiController_BeginStation(int timeout_ms);
 
 /**
  * @brief Begin the access point mode.
@@ -153,7 +164,7 @@ WifiController_ErrorCode_t WifiController_WifiController_BeginStation(int timeou
  * @param timeout_ms The timeout in milliseconds.
  * @return Error code.
  */
-WifiController_ErrorCode_t WifiController_WifiController_BeginAccessPoint(int timeout_ms);
+WC_ErrorCode_t WifiController_WifiController_BeginAccessPoint(int timeout_ms);
 
 /**
  * @brief Send the user interface configuration.
@@ -161,7 +172,7 @@ WifiController_ErrorCode_t WifiController_WifiController_BeginAccessPoint(int ti
  * @param ui The user interface.
  * @return Error code.
  */
-WifiController_ErrorCode_t WifiController_WifiController_SendConfiguration(const WifiController_UserInterface_t *ui);
+WC_ErrorCode_t WifiController_WifiController_SendConfiguration(const WifiController_UserInterface_t *ui);
 
 /**
  * @brief Send the user interface data update.
@@ -169,7 +180,7 @@ WifiController_ErrorCode_t WifiController_WifiController_SendConfiguration(const
  * @param ui The user interface.
  * @return Error code.
  */
-WifiController_ErrorCode_t WifiController_WifiController_SendDataUpdate(const WifiController_UserInterface_t *ui);
+WC_ErrorCode_t WifiController_WifiController_SendDataUpdate(const WifiController_UserInterface_t *ui);
 
 /**
  * @brief Receive a message.
@@ -181,6 +192,6 @@ WifiController_ErrorCode_t WifiController_WifiController_SendDataUpdate(const Wi
  *     processed and the appropriate action will be executed by the
  *     WifiController.
  */
-WifiController_ErrorCode_t WifiController_WifiController_Receive();
+WC_ErrorCode_t WifiController_WifiController_Receive();
 
 #endif /* WIFICONTROLLER_WIFICONTROLLER_H_ */

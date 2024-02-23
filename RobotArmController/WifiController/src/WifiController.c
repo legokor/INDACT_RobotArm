@@ -21,47 +21,47 @@ static char receiveBuffer[MESSAGE_MAX_SIZE + 1];
 static char responseTypeBuffer[RESPONSE_TYPE_MAX_LENGTH + 1];
 static char responseParamsBuffer[MESSAGE_MAX_SIZE + 1];
 
-static char ssid[SSID_MAX_LENGTH + 1];
-static char password[PASSWORD_MAX_LENGTH + 1];
+static char ssid[SSID_MAX_LENGTH + 1] = { '\0' };
+static char password[PASSWORD_MAX_LENGTH + 1] = { '\0' };
 static WifiController_IpAddress_t ipAddress;
 static int responseTimeout = 1000;
+static WifiController_ActionList_t actionList;
 
-static WifiController_ActionList_t *actionList;
-
-static WifiController_ErrorCode_t wait_confirm();
-static WifiController_ErrorCode_t wait_ip_address(int timeout_ms);
+static WC_ErrorCode_t wait_confirm();
+static WC_ErrorCode_t wait_ip_address(int timeout_ms);
 static bool check_ssid(const char *value);
 static bool check_password(const char *value);
-static WifiController_ErrorCode_t process_message(const char *message);
-static WifiController_ErrorCode_t execute_message(const char *cmd, const char *params);
-static WifiController_ErrorCode_t call_action(const char *params);
+static WC_ErrorCode_t process_message(const char *message);
+static WC_ErrorCode_t execute_message(const char *cmd, const char *params);
+static WC_ErrorCode_t call_action(const char *params);
 
-WifiController_ErrorCode_t WifiController_WifiController_Init(WifiController_ActionList_t *action_list)
+WC_ErrorCode_t WifiController_WifiController_Init()
 {
-    WifiController_ErrorCode_t error_code = WifiController_ErrorCode_UNKNOWN;
+    WC_ErrorCode_t error_code = WC_ErrorCode_UNKNOWN;
 
     error_code = WifiController_SerialHelper_Init();
-    if (error_code != WifiController_ErrorCode_NONE)
+    if (error_code != WC_ErrorCode_NONE)
     {
         return error_code;
     }
 
     error_code = WifiController_EventGroup_Init();
-    if (error_code != WifiController_ErrorCode_NONE)
+    if (error_code != WC_ErrorCode_NONE)
     {
         return error_code;
     }
 
     WifiController_IpAddress_Init(&ipAddress);
-    actionList = action_list;
+    WifiController_ActionList_Init(&actionList);
 
     initialized = true;
-    return WifiController_ErrorCode_NONE;
+    return WC_ErrorCode_NONE;
 }
 
 void WifiController_WifiController_Delete()
 {
     initialized = false;
+    WifiController_ActionList_Delete(&actionList);
     WifiController_SerialHelper_Delete();
 }
 
@@ -80,31 +80,36 @@ WifiController_IpAddress_t* WifiController_WifiController_GetIPAddress()
     return &ipAddress;
 }
 
-WifiController_ErrorCode_t WifiController_WifiController_SetSsid(const char *value)
+WifiController_ActionList_t *WifiController_WifiController_GetActionList()
+{
+    return &actionList;
+}
+
+WC_ErrorCode_t WifiController_WifiController_SetSsid(const char *value)
 {
     if (!check_ssid(value))
     {
-        return WifiController_ErrorCode_PARAMETER;
+        return WC_ErrorCode_PARAMETER;
     }
 
-    strcpy(ssid, value);
+    strncpy(ssid, value, SSID_MAX_LENGTH);
 
     strcpy(transmitBuffer, STR_SSID);
     strcat(transmitBuffer, " ");
     strcat(transmitBuffer, value);
-    WifiController_ErrorCode_t error_code = WifiController_SerialHelper_SendMessage(transmitBuffer);
-    if (error_code != WifiController_ErrorCode_NONE)
+    WC_ErrorCode_t error_code = WifiController_SerialHelper_SendMessage(transmitBuffer);
+    if (error_code != WC_ErrorCode_NONE)
     {
         return error_code;
     }
     return wait_confirm();
 }
 
-WifiController_ErrorCode_t WifiController_WifiController_SetPassword(const char *value)
+WC_ErrorCode_t WifiController_WifiController_SetPassword(const char *value)
 {
     if (!check_password(value))
     {
-        return WifiController_ErrorCode_PARAMETER;
+        return WC_ErrorCode_PARAMETER;
     }
 
     strcpy(password, value);
@@ -112,26 +117,26 @@ WifiController_ErrorCode_t WifiController_WifiController_SetPassword(const char 
     strcpy(transmitBuffer, STR_PASSWORD);
     strcat(transmitBuffer, " ");
     strcat(transmitBuffer, value);
-    WifiController_ErrorCode_t error_code = WifiController_SerialHelper_SendMessage(transmitBuffer);
-    if (error_code != WifiController_ErrorCode_NONE)
+    WC_ErrorCode_t error_code = WifiController_SerialHelper_SendMessage(transmitBuffer);
+    if (error_code != WC_ErrorCode_NONE)
     {
         return error_code;
     }
     return wait_confirm();
 }
 
-WifiController_ErrorCode_t WifiController_WifiController_ResetModule()
+WC_ErrorCode_t WifiController_WifiController_ResetModule()
 {
     WifiController_SerialHelper_SendMessage(STR_RESET);
     return wait_confirm();
 }
 
-WifiController_ErrorCode_t WifiController_WifiController_BeginStation(int timeout_ms)
+WC_ErrorCode_t WifiController_WifiController_BeginStation(int timeout_ms)
 {
     WifiController_SerialHelper_SendMessage(STR_CONNECT_STATION);
 
-    WifiController_ErrorCode_t error_code = wait_confirm();
-    if (error_code != WifiController_ErrorCode_NONE)
+    WC_ErrorCode_t error_code = wait_confirm();
+    if (error_code != WC_ErrorCode_NONE)
     {
         return error_code;
     }
@@ -139,12 +144,12 @@ WifiController_ErrorCode_t WifiController_WifiController_BeginStation(int timeou
     return wait_ip_address(timeout_ms);
 }
 
-WifiController_ErrorCode_t WifiController_WifiController_BeginAccessPoint(int timeout_ms)
+WC_ErrorCode_t WifiController_WifiController_BeginAccessPoint(int timeout_ms)
 {
     WifiController_SerialHelper_SendMessage(STR_SETUP_ACCESS_POINT);
 
-    WifiController_ErrorCode_t error_code = wait_confirm();
-    if (error_code != WifiController_ErrorCode_NONE)
+    WC_ErrorCode_t error_code = wait_confirm();
+    if (error_code != WC_ErrorCode_NONE)
     {
         return error_code;
     }
@@ -152,41 +157,45 @@ WifiController_ErrorCode_t WifiController_WifiController_BeginAccessPoint(int ti
     return wait_ip_address(timeout_ms);
 }
 
-WifiController_ErrorCode_t WifiController_WifiController_SendConfiguration(const WifiController_UserInterface_t *ui)
+WC_ErrorCode_t WifiController_WifiController_SendConfiguration(const WifiController_UserInterface_t *ui)
 {
     const char *command = STR_CONFIGURE_LAYOUT;
     size_t command_length = strlen(command);
     strcpy(transmitBuffer, command);
     strcat(transmitBuffer, " ");
-    WifiController_UserInterface_GetConfigurationJSON(ui, transmitBuffer + command_length + 1,
-    MESSAGE_MAX_SIZE - command_length - 1);
+    WifiController_UserInterface_GetConfigurationJSON(
+            ui,
+            transmitBuffer + command_length + 1,
+            MESSAGE_MAX_SIZE - command_length - 1);
     WifiController_SerialHelper_SendMessage(transmitBuffer);
     return wait_confirm();
 }
 
-WifiController_ErrorCode_t WifiController_WifiController_SendDataUpdate(const WifiController_UserInterface_t *ui)
+WC_ErrorCode_t WifiController_WifiController_SendDataUpdate(const WifiController_UserInterface_t *ui)
 {
     const char *command = STR_UPDATE_DATA;
     size_t command_length = strlen(command);
     strcpy(transmitBuffer, command);
     strcat(transmitBuffer, " ");
-    WifiController_UserInterface_GetDataJSON(ui, transmitBuffer + command_length + 1,
-    MESSAGE_MAX_SIZE - command_length - 1);
+    WifiController_UserInterface_GetDataJSON(
+            ui,
+            transmitBuffer + command_length + 1,
+            MESSAGE_MAX_SIZE - command_length - 1);
     WifiController_SerialHelper_SendMessage(transmitBuffer);
     return wait_confirm();
 }
 
-WifiController_ErrorCode_t WifiController_WifiController_Receive()
+WC_ErrorCode_t WifiController_WifiController_Receive()
 {
     if (!initialized)
     {
-        return WifiController_ErrorCode_NOT_INITIALZED;
+        return WC_ErrorCode_NOT_INITIALZED;
     }
 
-    WifiController_ErrorCode_t error_code = WifiController_ErrorCode_UNKNOWN;
+    WC_ErrorCode_t error_code = WC_ErrorCode_UNKNOWN;
 
     error_code = WifiController_SerialHelper_ReadMessage(receiveBuffer, MESSAGE_MAX_SIZE);
-    if (error_code != WifiController_ErrorCode_NONE)
+    if (error_code != WC_ErrorCode_NONE)
     {
         return error_code;
     }
@@ -196,65 +205,59 @@ WifiController_ErrorCode_t WifiController_WifiController_Receive()
     return error_code;
 }
 
-static WifiController_ErrorCode_t wait_confirm()
+static WC_ErrorCode_t wait_confirm()
 {
     EventBits_t bits = xEventGroupWaitBits(WifiController_EventGroup_GetHandle(),
-    WifiController_EventGroup_OkBit | WifiController_EventGroup_FailBit,
-    pdTRUE,
-    pdFALSE, pdMS_TO_TICKS(responseTimeout));
+            WifiController_EventGroup_OkBit | WifiController_EventGroup_FailBit,
+            pdTRUE,
+            pdFALSE,
+            pdMS_TO_TICKS(responseTimeout));
 
     if (bits & WifiController_EventGroup_OkBit)
     {
-        return WifiController_ErrorCode_NONE;
+        return WC_ErrorCode_NONE;
     }
     else if (bits & WifiController_EventGroup_FailBit)
     {
-        return WifiController_ErrorCode_CONTROLLER;
+        return WC_ErrorCode_CONTROLLER;
     }
-    return WifiController_ErrorCode_TIMEOUT;
+    return WC_ErrorCode_TIMEOUT;
 }
 
-static WifiController_ErrorCode_t wait_ip_address(int timeout_ms)
+static WC_ErrorCode_t wait_ip_address(int timeout_ms)
 {
     EventBits_t bits = xEventGroupWaitBits(WifiController_EventGroup_GetHandle(),
-    WifiController_EventGroup_IpBit | WifiController_EventGroup_FailBit,
-    pdTRUE,
-    pdFALSE, pdMS_TO_TICKS(responseTimeout));
+            WifiController_EventGroup_IpBit | WifiController_EventGroup_FailBit,
+            pdTRUE,
+            pdFALSE,
+            pdMS_TO_TICKS(responseTimeout));
 
     if (bits & WifiController_EventGroup_IpBit)
     {
-        return WifiController_ErrorCode_NONE;
+        return WC_ErrorCode_NONE;
     }
     else if (bits & WifiController_EventGroup_FailBit)
     {
-        return WifiController_ErrorCode_CONTROLLER;
+        return WC_ErrorCode_CONTROLLER;
     }
-    return WifiController_ErrorCode_TIMEOUT;
+    return WC_ErrorCode_TIMEOUT;
 }
 
 static bool check_ssid(const char *value)
 {
     size_t length = strlen(value);
-    if ((length < SSID_MIN_LENGTH) || (length > SSID_MAX_LENGTH))
-    {
-        return false;
-    }
-    return true;
+    return (length >= SSID_MIN_LENGTH) && (length <= SSID_MAX_LENGTH);
 }
 
 static bool check_password(const char *value)
 {
     size_t length = strlen(value);
-    if ((length < PASSWORD_MIN_LENGTH) || (length > PASSWORD_MAX_LENGTH))
-    {
-        return false;
-    }
-    return true;
+    return (length >= PASSWORD_MIN_LENGTH) && (length <= PASSWORD_MAX_LENGTH);
 }
 
-static WifiController_ErrorCode_t process_message(const char *message)
+static WC_ErrorCode_t process_message(const char *message)
 {
-    WifiController_ErrorCode_t error_code = WifiController_ErrorCode_NONE;
+    WC_ErrorCode_t error_code = WC_ErrorCode_NONE;
     const char *p = strchr(message, ' ');
     int type_length = 0;
     if (p != NULL)
@@ -262,7 +265,7 @@ static WifiController_ErrorCode_t process_message(const char *message)
         type_length = p - message;
         if (type_length > RESPONSE_TYPE_MAX_LENGTH)
         {
-            return WifiController_ErrorCode_CONTROLLER;
+            return WC_ErrorCode_CONTROLLER;
         }
         strncpy(responseTypeBuffer, message, p - message);
         strcpy(responseParamsBuffer, p + 1);
@@ -274,7 +277,7 @@ static WifiController_ErrorCode_t process_message(const char *message)
         type_length = strlen(message);
         if (type_length > RESPONSE_TYPE_MAX_LENGTH)
         {
-            return WifiController_ErrorCode_CONTROLLER;
+            return WC_ErrorCode_CONTROLLER;
         }
         strncpy(responseTypeBuffer, message, type_length + 1);
 
@@ -283,14 +286,14 @@ static WifiController_ErrorCode_t process_message(const char *message)
     return error_code;
 }
 
-static WifiController_ErrorCode_t execute_message(const char *cmd, const char *params)
+static WC_ErrorCode_t execute_message(const char *cmd, const char *params)
 {
-    WifiController_ErrorCode_t error_code = WifiController_ErrorCode_NONE;
+    WC_ErrorCode_t error_code = WC_ErrorCode_NONE;
     if (strcmp(cmd, STR_ACTION) == 0)
     {
         if (params == NULL)
         {
-            error_code = WifiController_ErrorCode_CONTROLLER;
+            error_code = WC_ErrorCode_CONTROLLER;
         }
         else
         {
@@ -314,18 +317,18 @@ static WifiController_ErrorCode_t execute_message(const char *cmd, const char *p
         else if (!WifiController_IpAddress_FromString(&ipAddress, params))
         {
             WifiController_IpAddress_SetAddress(&ipAddress, 0);
-            error_code = WifiController_ErrorCode_CONTROLLER;
+            error_code = WC_ErrorCode_CONTROLLER;
         }
         xEventGroupSetBits(WifiController_EventGroup_GetHandle(), WifiController_EventGroup_IpBit);
     }
     else
     {
-        error_code = WifiController_ErrorCode_CONTROLLER;
+        error_code = WC_ErrorCode_CONTROLLER;
     }
     return error_code;
 }
 
-static WifiController_ErrorCode_t call_action(const char *params)
+static WC_ErrorCode_t call_action(const char *params)
 {
     size_t path_length = 0;
     size_t args_length = 0;
@@ -345,7 +348,7 @@ static WifiController_ErrorCode_t call_action(const char *params)
     char *path = (char*)pvPortMalloc(sizeof(char) * (path_length + 1));
     if (path == NULL)
     {
-        return WifiController_ErrorCode_MEMORY_ALLOCATION;
+        return WC_ErrorCode_MEMORY_ALLOCATION;
     }
     strncpy(path, params, path_length);
     path[path_length] = '\0';
@@ -356,15 +359,15 @@ static WifiController_ErrorCode_t call_action(const char *params)
     if (args == NULL)
     {
         vPortFree(path);
-        return WifiController_ErrorCode_MEMORY_ALLOCATION;
+        return WC_ErrorCode_MEMORY_ALLOCATION;
     }
     strncpy(args, p + 1, args_length);
     args[args_length] = '\0';
     // }
 
     // Find action in list and call handler function {
-    int index = WifiController_ActionList_FindByPath(actionList, path);
-    const WifiController_Action_t *action = WifiController_ActionList_At(actionList, index);
+    int index = WifiController_ActionList_FindByPath(&actionList, path);
+    const WifiController_Action_t *action = WifiController_ActionList_At(&actionList, index);
     if (action != NULL)
     {
         action->handler(args);
@@ -373,5 +376,5 @@ static WifiController_ErrorCode_t call_action(const char *params)
 
     vPortFree(path);
     vPortFree(args);
-    return WifiController_ErrorCode_NONE;
+    return WC_ErrorCode_NONE;
 }

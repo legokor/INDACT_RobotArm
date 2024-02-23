@@ -20,7 +20,7 @@
  * 
  * @note This function must be called before any other function in this file.
  */
-WifiController_ErrorCode_t WifiController_EventGroup_Init();
+WC_ErrorCode_t WifiController_EventGroup_Init();
 
 /**
  * @brief Deletes the event group.

@@ -3,6 +3,10 @@
 
 #include "FreeRTOS.h"
 
+#define logInfo(...) Logger_LogPrintf(LogLevel_Info, __VA_ARGS__)
+#define logWarn(...) Logger_LogPrintf(LogLevel_Warn, __VA_ARGS__)
+#define logError(...) Logger_LogPrintf(LogLevel_Error, __VA_ARGS__)
+
 typedef enum LogLevel
 {
     LogLevel_Info,

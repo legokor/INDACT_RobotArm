@@ -5,18 +5,18 @@
 #include <string.h>
 
 static WifiController_TextFieldListElement_t* create_text_field_list_element(const char *text);
-static void delete_text_field_list_element(WifiController_TextFieldListElement_t *this);
+static void delete_text_field_list_element(WifiController_TextFieldListElement_t *tfl);
 
-void WifiController_TextField_Init(WifiController_TextField_t *this)
+void WifiController_TextField_Init(WifiController_TextFieldList_t *tfl)
 {
-    this->head = NULL;
-    this->tail = NULL;
-    this->size = 0;
+    tfl->head = NULL;
+    tfl->tail = NULL;
+    tfl->size = 0;
 }
 
-void WifiController_TextField_Delete(WifiController_TextField_t *this)
+void WifiController_TextField_Delete(WifiController_TextFieldList_t *tfl)
 {
-    WifiController_TextFieldListElement_t *current = this->head;
+    WifiController_TextFieldListElement_t *current = tfl->head;
     while (current != NULL)
     {
         WifiController_TextFieldListElement_t *next = current->next;
@@ -24,17 +24,17 @@ void WifiController_TextField_Delete(WifiController_TextField_t *this)
         vPortFree(current);
         current = next;
     }
-    this->head = NULL;
-    this->tail = NULL;
-    this->size = 0;
+    tfl->head = NULL;
+    tfl->tail = NULL;
+    tfl->size = 0;
 }
 
-int WifiController_TextField_GetSize(const WifiController_TextField_t *this)
+int WifiController_TextField_GetSize(const WifiController_TextFieldList_t *tfl)
 {
-    return this->size;
+    return tfl->size;
 }
 
-bool WifiController_TextField_PushBack(WifiController_TextField_t *this, const char *text)
+bool WifiController_TextField_PushBack(WifiController_TextFieldList_t *tfl, const char *text)
 {
     WifiController_TextFieldListElement_t *new_element = create_text_field_list_element(text);
     if (new_element == NULL)
@@ -43,31 +43,31 @@ bool WifiController_TextField_PushBack(WifiController_TextField_t *this, const c
     }
 
     // If the list is empty, set the new element as both root and tail
-    if (this->head == NULL)
+    if (tfl->head == NULL)
     {
-        this->head = new_element;
-        this->tail = new_element;
+        tfl->head = new_element;
+        tfl->tail = new_element;
     }
     else
     {
         // Otherwise, update the tail to point to the new element
-        this->tail->next = new_element;
-        this->tail = new_element;
+        tfl->tail->next = new_element;
+        tfl->tail = new_element;
     }
 
     // Increment the size of the list
-    this->size++;
+    tfl->size++;
     return true;
 }
 
-const char* WifiController_TextField_At(const WifiController_TextField_t *this, int index)
+const char* WifiController_TextField_At(const WifiController_TextFieldList_t *tfl, int index)
 {
-    if ((index < 0) || (index >= this->size))
+    if ((index < 0) || (index >= tfl->size))
     {
         return NULL; // Index out of bounds
     }
 
-    WifiController_TextFieldListElement_t *current = this->head;
+    WifiController_TextFieldListElement_t *current = tfl->head;
     int i = 0;
     while (i < index)
     {
@@ -100,7 +100,7 @@ static WifiController_TextFieldListElement_t* create_text_field_list_element(con
     return new_element;
 }
 
-static void delete_text_field_list_element(WifiController_TextFieldListElement_t *this)
+static void delete_text_field_list_element(WifiController_TextFieldListElement_t *tfl)
 {
-    vPortFree(this->text);
+    vPortFree(tfl->text);
 }

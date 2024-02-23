@@ -4,11 +4,11 @@
 
 #include <string.h>
 
-bool WifiController_ControlTable_Init(WifiController_ControlTable_t *this)
+void WifiController_ControlTable_Init(WifiController_ControlTable_t *this)
 {
-    this->head = this->tail = NULL;
+    this->head = NULL;
+    this->tail = NULL;
     this->size = 0;
-    return true;
 }
 
 void WifiController_ControlTable_Delete(WifiController_ControlTable_t *this)
@@ -110,12 +110,12 @@ void WifiController_ControlTable_Clear(WifiController_ControlTable_t *this)
     this->size = 0;
 }
 
-int WifiController_ControlTable_Size(const WifiController_ControlTable_t *this)
+int WifiController_ControlTable_GetSize(const WifiController_ControlTable_t *this)
 {
     return this->size;
 }
 
-WifiController_ControlTableRow_t* ControlTable_Get(const WifiController_ControlTable_t *this, int index)
+WifiController_ControlTableRow_t* WifiController_ControlTable_At(const WifiController_ControlTable_t *this, int index)
 {
     if (index < 0 || index >= this->size)
     {
@@ -133,7 +133,7 @@ WifiController_ControlTableRow_t* ControlTable_Get(const WifiController_ControlT
 
 bool WifiController_ControlTable_Set(WifiController_ControlTable_t *this, int index, const char *label, const char *control)
 {
-    WifiController_ControlTableRow_t *row = WifiController_ControlTable_Get(this, index);
+    WifiController_ControlTableRow_t *row = WifiController_ControlTable_At(this, index);
     if (row == NULL)
     {
         return false; // Index out of bounds

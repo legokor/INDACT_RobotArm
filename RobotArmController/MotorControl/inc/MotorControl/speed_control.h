@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <stm32f4xx_hal.h>
+#include "stm32f7xx_hal.h"
 
 #define TIMER_PRESCALER_MIN (1.0)
 #define TIMER_PRESCALER_MAX (65536.0)

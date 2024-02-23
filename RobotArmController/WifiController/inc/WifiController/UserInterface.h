@@ -16,9 +16,9 @@ typedef struct WifiController_UserInterface
 {
     char *title; /**< The title of the page. */
     char *pageHeader; /**< The header of the page. */
-    const WifiController_TextField_t *textFieldTop; /**< The top text field. */
-    const WifiController_TextField_t *textFieldBottom; /**< The bottom text field. */
-    const WifiController_ControlTable_t *controlTable; /**< The control table. */
+    WifiController_TextFieldList_t textFieldTop; /**< The top text field. */
+    WifiController_TextFieldList_t textFieldBottom; /**< The bottom text field. */
+    WifiController_ControlTable_t controlTable; /**< The control table. */
     char *userScript; /**< The user script. */
 } WifiController_UserInterface_t;
 
@@ -59,33 +59,6 @@ bool WifiController_UserInterface_SetTitle(WifiController_UserInterface_t *this,
  * @return True if the page header was set successfully, false otherwise.
  */
 bool WifiController_UserInterface_SetPageHeader(WifiController_UserInterface_t *this, const char *value);
-
-/**
- * @brief Set the top text field.
- * 
- * @param this The user interface.
- * @param value The top text field to set.
- * @return True if the top text field was set successfully, false otherwise.
- */
-bool WifiController_UserInterface_SetTextFieldTop(WifiController_UserInterface_t *this, const WifiController_TextField_t *value);
-
-/**
- * @brief Set the bottom text field.
- * 
- * @param this The user interface.
- * @param value The bottom text field to set.
- * @return True if the bottom text field was set successfully, false otherwise.
- */
-bool WifiController_UserInterface_SetTextFieldBottom(WifiController_UserInterface_t *this, const WifiController_TextField_t *value);
-
-/**
- * @brief Set the control table.
- * 
- * @param this The user interface.
- * @param value The control table to set.
- * @return True if the control table was set successfully, false otherwise.
- */
-bool WifiController_UserInterface_SetControlTable(WifiController_UserInterface_t *this, const WifiController_ControlTable_t *value);
 
 /**
  * @brief Set the user script.

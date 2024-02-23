@@ -42,8 +42,8 @@
  *
  * INPUT:
  * @param (s_MC_StepperMotor*) stepper_motors: Pointer to the array, that contains the motors' structs.
- * @param (uint8_t) motor_id: ID of the motor, that you want to manipulate : KAR_MC_MOTORID_FI/Z/R
- * @param (uint8_t) direction: the direction define you want to set : KAR_MC_DIR_UNDEFINED/NEGATIVE/POSITIVE
+ * @param (uint8_t) motor_id: ID of the motor, that you want to manipulate : MC_MOTORID_FI/Z/R
+ * @param (uint8_t) direction: the direction define you want to set : MC_DIR_UNDEFINED/NEGATIVE/POSITIVE
  *
  * OUTPUT:
  * @retval (e_MC_ErrorCode_t) errorCode:
@@ -54,29 +54,29 @@ e_MC_ErrorCode_t u8_MC_SetMotorDir_f(s_MC_StepperMotor *stepper_motors, uint8_t 
 	uint8_t dir;
 	e_MC_ErrorCode_t errorCode = e_MC_ErrorCode_OK;
 
-	if ((KAR_MC_NUMBER_OF_MOTORS - 1) < motor_id)
+	if ((MC_NUMBER_OF_MOTORS - 1) < motor_id)
 	{
 		return e_MC_ErrorCode_WrongParameter;
 	}
 
 	switch(direction) {
-		case KAR_MC_DIR_UNDEFINED:
-			dir = KAR_MC_DIR_UNDEFINED;
+		case MC_DIR_UNDEFINED:
+			dir = MC_DIR_UNDEFINED;
 			break;
-		case KAR_MC_DIR_POSITIVE:
+		case MC_DIR_POSITIVE:
 			if (stepper_motors[motor_id].allowedDir & (uint8_t)(2u))
 			{
-				dir = KAR_MC_DIR_POSITIVE;
+				dir = MC_DIR_POSITIVE;
 			}
 			else
 			{
 				errorCode = e_MC_ErrorCode_FrobiddenState;
 			}
 			break;
-		case KAR_MC_DIR_NEGATIVE:
+		case MC_DIR_NEGATIVE:
 			if (stepper_motors[motor_id].allowedDir & (uint8_t)(1u))
 			{
-				dir = KAR_MC_DIR_NEGATIVE;
+				dir = MC_DIR_NEGATIVE;
 			}
 			else
 			{
@@ -116,7 +116,7 @@ e_MC_ErrorCode_t u8_MC_setAllMotorDir_f(s_MC_StepperMotor *stepper_motors, uint8
 {
 	e_MC_ErrorCode_t errorCode = e_MC_ErrorCode_OK;
 
-	for(uint8_t idx = 0; idx < KAR_MC_NUMBER_OF_MOTORS; idx++)
+	for(uint8_t idx = 0; idx < MC_NUMBER_OF_MOTORS; idx++)
 	{
 		errorCode = u8_MC_SetMotorDir_f(stepper_motors, idx, direction);
 		if (errorCode)
@@ -145,15 +145,15 @@ e_MC_ErrorCode_t u8_MC_setAllMotorDir_f(s_MC_StepperMotor *stepper_motors, uint8
  */
 e_MC_ErrorCode_t u8_MC_MotorON_f(s_MC_StepperMotor *stepper_motors, uint8_t motor_id)
 {
-	if ((KAR_MC_NUMBER_OF_MOTORS-1) < motor_id)
+	if ((MC_NUMBER_OF_MOTORS-1) < motor_id)
 	{
 		return e_MC_ErrorCode_WrongParameter;
 	}
 
-	if (KAR_MC_DIR_UNDEFINED != stepper_motors[motor_id].dir)
+	if (MC_DIR_UNDEFINED != stepper_motors[motor_id].dir)
 	{
 		HAL_TIM_PWM_Start_IT(stepper_motors[motor_id].TIM, stepper_motors[motor_id].TIM_CH);
-		stepper_motors[motor_id].motorState = KAR_MC_STATE_RUNNING;
+		stepper_motors[motor_id].motorState = MC_STATE_RUNNING;
 	}
 	else
 	{
@@ -181,7 +181,7 @@ e_MC_ErrorCode_t u8_MC_AllMotorON_f(s_MC_StepperMotor *stepper_motors)
 {
 	e_MC_ErrorCode_t errorCode = e_MC_ErrorCode_OK;
 
-	for (uint8_t idx = 0; idx < KAR_MC_NUMBER_OF_MOTORS; idx++)
+	for (uint8_t idx = 0; idx < MC_NUMBER_OF_MOTORS; idx++)
 	{
 		errorCode = u8_MC_MotorON_f(stepper_motors, idx);
 		if (errorCode)
@@ -218,24 +218,24 @@ e_MC_ErrorCode_t u8_MC_setAllMotorDir_TowardsDesiredPos_f(s_MC_StepperMotor *ste
 {
 	e_MC_ErrorCode_t errorCode = e_MC_ErrorCode_OK;
 
-	int32_t differences[KAR_MC_NUMBER_OF_MOTORS];
-	differences[0] = (stepper_motors[KAR_MC_MOTORID_PHI].nextPos - stepper_motors[KAR_MC_MOTORID_PHI].currPos);
-	differences[1] = (stepper_motors[KAR_MC_MOTORID_Z].nextPos - stepper_motors[KAR_MC_MOTORID_Z].currPos);
-	differences[2] = (stepper_motors[KAR_MC_MOTORID_R].nextPos - stepper_motors[KAR_MC_MOTORID_R].currPos);
+	int32_t differences[MC_NUMBER_OF_MOTORS];
+	differences[0] = (stepper_motors[MC_MOTORID_PHI].nextPos - stepper_motors[MC_MOTORID_PHI].currPos);
+	differences[1] = (stepper_motors[MC_MOTORID_Z].nextPos - stepper_motors[MC_MOTORID_Z].currPos);
+	differences[2] = (stepper_motors[MC_MOTORID_R].nextPos - stepper_motors[MC_MOTORID_R].currPos);
 
-	for(uint8_t idx = 0; idx < KAR_MC_NUMBER_OF_MOTORS; idx++)
+	for(uint8_t idx = 0; idx < MC_NUMBER_OF_MOTORS; idx++)
 	{
 		if(0 == differences[idx])
 		{
-			errorCode = u8_MC_SetMotorDir_f(stepper_motors, idx, KAR_MC_DIR_UNDEFINED);
+			errorCode = u8_MC_SetMotorDir_f(stepper_motors, idx, MC_DIR_UNDEFINED);
 		}
 		else if (0 > differences[idx])
 		{
-			errorCode = u8_MC_SetMotorDir_f(stepper_motors, idx, KAR_MC_DIR_NEGATIVE);
+			errorCode = u8_MC_SetMotorDir_f(stepper_motors, idx, MC_DIR_NEGATIVE);
 		}
 		else
 		{
-			errorCode = u8_MC_SetMotorDir_f(stepper_motors, idx, KAR_MC_DIR_POSITIVE);
+			errorCode = u8_MC_SetMotorDir_f(stepper_motors, idx, MC_DIR_POSITIVE);
 		}
 
 		if (errorCode)
@@ -296,7 +296,7 @@ inline e_MC_ErrorCode_t u8_MC_StartAllMotor_f(s_MC_StepperMotor *stepper_motors,
 {
 	e_MC_ErrorCode_t errorCode = e_MC_ErrorCode_OK;
 
-	for(uint8_t idx = 0; idx < KAR_MC_NUMBER_OF_MOTORS; idx++)
+	for(uint8_t idx = 0; idx < MC_NUMBER_OF_MOTORS; idx++)
 	{
 		errorCode = u8_MC_StartMotor_f(stepper_motors, idx, direction);
 		if (errorCode)
@@ -325,7 +325,7 @@ inline e_MC_ErrorCode_t u8_MC_StartAllMotor_f(s_MC_StepperMotor *stepper_motors,
 inline void v_MC_StopMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t motor_id)
 {
 	HAL_TIM_PWM_Stop_IT(stepper_motors[motor_id].TIM, stepper_motors[motor_id].TIM_CH);
-	stepper_motors[motor_id].motorState = KAR_MC_STATE_STOPPED;
+	stepper_motors[motor_id].motorState = MC_STATE_STOPPED;
 }
 
 /*
@@ -343,9 +343,9 @@ inline void v_MC_StopMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t motor_id
  */
 inline void v_MC_StopAllMotor_f(s_MC_StepperMotor *stepperMotors)
 {
-	v_MC_StopMotor_f(stepperMotors, KAR_MC_MOTORID_PHI);
-	v_MC_StopMotor_f(stepperMotors, KAR_MC_MOTORID_Z);
-	v_MC_StopMotor_f(stepperMotors, KAR_MC_MOTORID_R);
+	v_MC_StopMotor_f(stepperMotors, MC_MOTORID_PHI);
+	v_MC_StopMotor_f(stepperMotors, MC_MOTORID_Z);
+	v_MC_StopMotor_f(stepperMotors, MC_MOTORID_R);
 }
 
 /*
@@ -382,7 +382,7 @@ e_MC_ErrorCode_t u8_MC_ControlMotor_viaGPIO_f (s_MC_StepperMotor *stepper_motors
 	{
 		if (!limit_switches[motor_id].max_point)
 		{
-			errorCode = u8_MC_StartMotor_f(stepper_motors, motor_id, KAR_MC_DIR_POSITIVE);
+			errorCode = u8_MC_StartMotor_f(stepper_motors, motor_id, MC_DIR_POSITIVE);
 		}
 		else
 		{
@@ -393,7 +393,7 @@ e_MC_ErrorCode_t u8_MC_ControlMotor_viaGPIO_f (s_MC_StepperMotor *stepper_motors
 	{
 		if (!limit_switches[motor_id].null_point)
 		{
-			errorCode = u8_MC_StartMotor_f(stepper_motors, motor_id, KAR_MC_DIR_NEGATIVE);
+			errorCode = u8_MC_StartMotor_f(stepper_motors, motor_id, MC_DIR_NEGATIVE);
 		}
 		else
 		{

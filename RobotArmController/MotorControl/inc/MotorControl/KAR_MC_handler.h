@@ -34,10 +34,10 @@
  * 																												*
  *****************************************************************************************************************/
 
-#define KAR_MC_NUMBER_OF_MOTORS						(3u)
+#define MC_NUMBER_OF_MOTORS						(3u)
 
-#define KAR_MC_STATE_RUNNING 						(1u)
-#define KAR_MC_STATE_STOPPED 						(0u)
+#define MC_STATE_RUNNING 						(1u)
+#define MC_STATE_STOPPED 						(0u)
 
 /*
  * On the Z axis the positive direction is downward.
@@ -45,28 +45,28 @@
  * On the FI axis positive means the clockwise rotation.
  * Undefined direction means a stop. When the motor has undefined direction it cannot start to move.
  */
-#define KAR_MC_DIR_UNDEFINED						(2u)
-#define KAR_MC_DIR_POSITIVE 						(1u)
-#define KAR_MC_DIR_NEGATIVE 						(0u)
+#define MC_DIR_UNDEFINED						(2u)
+#define MC_DIR_POSITIVE 						(0u)
+#define MC_DIR_NEGATIVE 						(1u)
 
 /*
  * StepperMotor.allowedDir value defines which way a motor can move - able to restrict movement.
  */
-#define KAR_MC_ALLOWDIR_BOTHDIR						(3u)
-#define KAR_MC_ALLOWDIR_POSDIR						(2u)
-#define KAR_MC_ALLOWDIR_NEGDIR						(1u)
-#define KAR_MC_ALLOWDIR_NODIR						(0u)
+#define MC_ALLOWDIR_BOTHDIR						(3u)
+#define MC_ALLOWDIR_POSDIR						(2u)
+#define MC_ALLOWDIR_NEGDIR						(1u)
+#define MC_ALLOWDIR_NODIR						(0u)
 
-#define KAR_MC_MOTORID_PHI							(0u)
-#define KAR_MC_MOTORID_Z							(1u)
-#define KAR_MC_MOTORID_R							(2u)
+#define MC_MOTORID_PHI							(0u)
+#define MC_MOTORID_Z							(1u)
+#define MC_MOTORID_R							(2u)
 
 /*
  * Length of the axis, measured in steps of the stepper motor.
  */
-#define U32_KAR_MC_MAXPOS_FI 							(int32_t)13874u
-#define U32_KAR_MC_MAXPOS_Z 							(int32_t)49231u
-#define U32_KAR_MC_MAXPOS_R 							(int32_t)1048u
+#define MC_MAXPOS_PHI 							(int32_t)13874u
+#define MC_MAXPOS_Z 							(int32_t)49231u
+#define MC_MAXPOS_R 							(int32_t)1048u
 
 /****************************************************************************************************************
  * 																												*
@@ -137,7 +137,7 @@ typedef struct
  * @retval (e_MC_ErrorCode_t) errorCode:
  *-------------------------------------------------------------------
  */
-extern e_MC_ErrorCode_t u8_MC_setAllMotorDir_TowardsDesiredPos_f(s_MC_StepperMotor *stepper_motors);
+e_MC_ErrorCode_t u8_MC_setAllMotorDir_TowardsDesiredPos_f(s_MC_StepperMotor *stepper_motors);
 
 /*
  *===================================================================*
@@ -155,7 +155,7 @@ extern e_MC_ErrorCode_t u8_MC_setAllMotorDir_TowardsDesiredPos_f(s_MC_StepperMot
  * @retval (e_MC_ErrorCode_t) errorCode:
  *-------------------------------------------------------------------
  */
-extern inline e_MC_ErrorCode_t u8_MC_StartMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t motor_id, uint8_t direction);
+e_MC_ErrorCode_t u8_MC_StartMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t motor_id, uint8_t direction);
 
 /*
  *===================================================================*
@@ -173,7 +173,7 @@ extern inline e_MC_ErrorCode_t u8_MC_StartMotor_f(s_MC_StepperMotor *stepper_mot
  * @retval (e_MC_ErrorCode_t) errorCode:
  *-------------------------------------------------------------------
  */
-extern inline e_MC_ErrorCode_t u8_MC_StartAllMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t direction);
+e_MC_ErrorCode_t u8_MC_StartAllMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t direction);
 
 /*
  *===================================================================*
@@ -189,7 +189,7 @@ extern inline e_MC_ErrorCode_t u8_MC_StartAllMotor_f(s_MC_StepperMotor *stepper_
  * OUTPUT: none
  *-------------------------------------------------------------------
  */
-extern inline void v_MC_StopMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t motor_id);
+void v_MC_StopMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t motor_id);
 
 /*
  *===================================================================*
@@ -204,7 +204,7 @@ extern inline void v_MC_StopMotor_f(s_MC_StepperMotor *stepper_motors, uint8_t m
  * OUTPUT: none
  *-------------------------------------------------------------------
  */
-extern inline void v_MC_StopAllMotor_f(s_MC_StepperMotor *stepperMotors);
+void v_MC_StopAllMotor_f(s_MC_StepperMotor *stepperMotors);
 
 /*
  *===================================================================*
@@ -224,7 +224,7 @@ extern inline void v_MC_StopAllMotor_f(s_MC_StepperMotor *stepperMotors);
  * @retval (e_MC_ErrorCode_t) errorCode:
  *-------------------------------------------------------------------
  */
-extern e_MC_ErrorCode_t u8_MC_ControlMotor_viaGPIO_f (s_MC_StepperMotor *stepper_motors, uint8_t motor_id, s_GEO_LimitSwitch* limit_switches,
+e_MC_ErrorCode_t u8_MC_ControlMotor_viaGPIO_f (s_MC_StepperMotor *stepper_motors, uint8_t motor_id, s_GEO_LimitSwitch* limit_switches,
 											   s_GEN_GPIO positive_button, s_GEN_GPIO negative_button);
 
 #endif		// KAR_MC_HANDLER_H

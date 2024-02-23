@@ -11,13 +11,13 @@ static HardwareSupport_Serial_t serial;
 static const char *beginMarker = MESSAGE_BEGIN_MARKER;
 static const char *endMarker = MESSAGE_END_MARKER;
 
-WifiController_ErrorCode_t WifiController_SerialHelper_Init()
+WC_ErrorCode_t WifiController_SerialHelper_Init()
 {
     if (!HardwareSupport_Serial_Init(&serial, WifiController_SerialHelper_Config_Huart, (MESSAGE_MAX_SIZE + 3)))
     {
-        return WifiController_ErrorCode_MEMORY_ALLOCATION;
+        return WC_ErrorCode_MEMORY_ALLOCATION;
     }
-    return WifiController_ErrorCode_NONE;
+    return WC_ErrorCode_NONE;
 }
 
 void WifiController_SerialHelper_Delete()
@@ -25,20 +25,20 @@ void WifiController_SerialHelper_Delete()
     HardwareSupport_Serial_Delete(&serial);
 }
 
-WifiController_ErrorCode_t WifiController_SerialHelper_SendMessage(const char *message)
+WC_ErrorCode_t WifiController_SerialHelper_SendMessage(const char *message)
 {
     if (strlen(message) > MESSAGE_MAX_SIZE)
     {
-        return WifiController_ErrorCode_PARAMETER;
+        return WC_ErrorCode_PARAMETER;
     }
 
     HardwareSupport_Serial_Write(&serial, beginMarker, MESSAGE_MARKER_SIZE);
     HardwareSupport_Serial_Write(&serial, message, strlen(message));
     HardwareSupport_Serial_Write(&serial, endMarker, MESSAGE_MARKER_SIZE);
-    return WifiController_ErrorCode_NONE;
+    return WC_ErrorCode_NONE;
 }
 
-WifiController_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer, int max_length)
+WC_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer, int max_length)
 {
     char temp[2] = { '\0' };
     bool message_started = false;
@@ -74,13 +74,13 @@ WifiController_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer,
 
                 if (index >= max_length)
                 {
-                    return WifiController_ErrorCode_MESSAGE_LENGTH;
+                    return WC_ErrorCode_MESSAGE_LENGTH;
                 }
             }
         }
     }
 
-    return WifiController_ErrorCode_NONE;
+    return WC_ErrorCode_NONE;
 }
 
 void WifiController_SerialHelper_UartRxCallback(UART_HandleTypeDef *huart)

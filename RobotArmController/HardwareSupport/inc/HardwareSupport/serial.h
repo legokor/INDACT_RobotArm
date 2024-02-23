@@ -5,7 +5,7 @@
 extern "C" {
 #endif /* defined( __cplusplus ) */
 
-#include <stm32f4xx_hal.h>
+#include "stm32f7xx_hal.h"
 
 #include <FreeRTOS.h>
 #include <semphr.h>
