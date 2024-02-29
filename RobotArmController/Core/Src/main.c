@@ -35,6 +35,7 @@
 #include "logger.h"
 #include "stepper_motor.h"
 #include "retarget_io.h"
+#include "wifi_module.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -116,6 +117,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
     initLimitswitches();
     initStepperMotors();
+    initWifiModule();
 
     initRetargetIo();
     Logger_Init(200);
