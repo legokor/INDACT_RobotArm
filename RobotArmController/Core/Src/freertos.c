@@ -319,6 +319,11 @@ void StartDefaultTask(void *argument)
             "position: (%ld, %ld, %ld), state: %d",
             cp.r, cp.phi, cp.z,
             appState);
+        logInfo(
+            "null: (%ld, %ld, %ld)",
+            limit_switches[MC_MOTORID_R].null_point,
+            limit_switches[MC_MOTORID_PHI].null_point,
+            limit_switches[MC_MOTORID_Z].null_point);
 
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
@@ -354,6 +359,7 @@ static void homingSequence()
             if ((!r_finished) && limit_switches[MC_MOTORID_R].null_point)
             {
                 v_MC_StopMotor_f(stepper_motors, MC_MOTORID_R);
+                stepper_motors[MC_MOTORID_R].currPos = 0;
                 r_finished = true;
             }
 
@@ -361,6 +367,7 @@ static void homingSequence()
             if ((!phi_finished) && limit_switches[MC_MOTORID_PHI].null_point)
             {
                 v_MC_StopMotor_f(stepper_motors, MC_MOTORID_PHI);
+                stepper_motors[MC_MOTORID_PHI].currPos = 0;
                 phi_finished = true;
             }
 
@@ -368,6 +375,7 @@ static void homingSequence()
             if ((!z_finished) && limit_switches[MC_MOTORID_Z].null_point)
             {
                 v_MC_StopMotor_f(stepper_motors, MC_MOTORID_Z);
+                stepper_motors[MC_MOTORID_Z].currPos = 0;
                 z_finished = true;
             }
 
@@ -919,6 +927,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_R].currPos = 0;
             stepper_motors[MC_MOTORID_R].allowedDir = MC_ALLOWDIR_POSDIR;
+            printf("lsw_r_null\n");
         }
         else
         {
@@ -936,6 +945,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_R].allowedDir = MC_ALLOWDIR_BOTHDIR;
         }
+        printf("lsw_r_max\n");
         break;
     case lsw_phi_null_Pin: // || lsw_z_null_Pin (These pins have the same number.)
         limit_switches[MC_MOTORID_PHI].null_point = HAL_GPIO_ReadPin(lsw_phi_null_GPIO_Port, lsw_phi_null_Pin) == LSW_PHI_NULL_ACTIVE;
@@ -943,17 +953,19 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_PHI].currPos = 0;
             stepper_motors[MC_MOTORID_PHI].allowedDir = MC_ALLOWDIR_POSDIR;
+            printf("lsw_phi_null\n");
         }
         else
         {
             stepper_motors[MC_MOTORID_PHI].allowedDir = MC_ALLOWDIR_BOTHDIR;
         }
-
+    case lsw_z_null_Pin:
         limit_switches[MC_MOTORID_Z].null_point = HAL_GPIO_ReadPin(lsw_z_null_GPIO_Port, lsw_z_null_Pin) == LSW_Z_NULL_ACTIVE;
         if (limit_switches[MC_MOTORID_Z].null_point)
         {
             stepper_motors[MC_MOTORID_Z].currPos = 0;
             stepper_motors[MC_MOTORID_Z].allowedDir = MC_ALLOWDIR_POSDIR;
+            printf("lsw_z_null\n");
         }
         else
         {
@@ -971,6 +983,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_PHI].allowedDir = MC_ALLOWDIR_BOTHDIR;
         }
+        printf("lsw_phi_max\n");
         break;
     case lsw_z_max_Pin:
         limit_switches[MC_MOTORID_Z].max_point = HAL_GPIO_ReadPin(lsw_z_max_GPIO_Port, lsw_z_max_Pin) == LSW_Z_MAX_ACTIVE;
@@ -983,6 +996,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_Z].allowedDir = MC_ALLOWDIR_BOTHDIR;
         }
+        printf("lsw_z_max_Pin\n");
         break;
     }
 
@@ -1007,7 +1021,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  */
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim->Instance == TIM1)
+    if ((htim->Instance == stepper_motors[MC_MOTORID_PHI].TIM->Instance)
+            && (stepper_motors[MC_MOTORID_PHI].motorState == MC_STATE_RUNNING))
     {
         if (MC_DIR_NEGATIVE == stepper_motors[MC_MOTORID_PHI].dir)
         {
@@ -1018,7 +1033,8 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
             stepper_motors[MC_MOTORID_PHI].currPos++;
         }
     }
-    if (htim->Instance == TIM2)
+    if ((htim->Instance == stepper_motors[MC_MOTORID_Z].TIM->Instance)
+            && (stepper_motors[MC_MOTORID_Z].motorState == MC_STATE_RUNNING))
     {
         if (MC_DIR_NEGATIVE == stepper_motors[MC_MOTORID_Z].dir)
         {
@@ -1029,7 +1045,8 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
             stepper_motors[MC_MOTORID_Z].currPos++;
         }
     }
-    if (htim->Instance == TIM3)
+    if ((htim->Instance == stepper_motors[MC_MOTORID_R].TIM->Instance)
+            && (stepper_motors[MC_MOTORID_R].motorState == MC_STATE_RUNNING))
     {
         if (MC_DIR_NEGATIVE == stepper_motors[MC_MOTORID_R].dir)
         {

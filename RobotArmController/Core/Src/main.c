@@ -31,6 +31,7 @@
 /* USER CODE BEGIN Includes */
 #include "cJSON/cJSON.h"
 
+#include "limitswitch.h"
 #include "logger.h"
 #include "stepper_motor.h"
 #include "retarget_io.h"
@@ -113,6 +114,7 @@ int main(void)
   MX_I2C4_Init();
   MX_USB_OTG_FS_PCD_Init();
   /* USER CODE BEGIN 2 */
+    initLimitswitches();
     initStepperMotors();
 
     initRetargetIo();
