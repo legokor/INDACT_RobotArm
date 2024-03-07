@@ -159,7 +159,7 @@ WifiController_ActionList_t wifiActionList;
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
-uint32_t defaultTaskBuffer[ 128 ];
+uint32_t defaultTaskBuffer[ 1024 ];
 osStaticThreadDef_t defaultTaskControlBlock;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
@@ -167,7 +167,7 @@ const osThreadAttr_t defaultTask_attributes = {
   .cb_size = sizeof(defaultTaskControlBlock),
   .stack_mem = &defaultTaskBuffer[0],
   .stack_size = sizeof(defaultTaskBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityBelowNormal,
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -861,7 +861,7 @@ void gpioControlTask(void *pvParameters)
         u8_MC_ControlMotor_viaGPIO_f(stepper_motors, MC_MOTORID_PHI, limit_switches, fi_pos_button, fi_neg_button);
         u8_MC_ControlMotor_viaGPIO_f(stepper_motors, MC_MOTORID_Z, limit_switches, z_pos_button, z_neg_button);
 
-        vTaskDelay(10);
+        vTaskDelay(50);
     }
 }
 
