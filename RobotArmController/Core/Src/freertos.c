@@ -76,16 +76,18 @@ typedef enum AppState
 /* USER CODE BEGIN PD */
 
 // Task settings
-#define INDICATOR_BLINKING_TASK_STACK_SIZE 128
+#define INDICATOR_BLINKING_TASK_STACK_SIZE 512
 #define INDICATOR_BLINKING_TASK_PRIORITY TASK_PRIORITY_LOWEST
-#define WIFI_RECEIVE_TASK_STACK_SIZE 512
+#define WIFI_RECEIVE_TASK_STACK_SIZE 2048
 #define WIFI_RECEIVE_TASK_PRIORITY TASK_PRIORITY_ABOVE_NORMAL
-#define DEMO_MOVE_CONTROL_TASK_STACK_SIZE 512
+#define DEMO_MOVE_CONTROL_TASK_STACK_SIZE 2048
 #define DEMO_MOVE_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
-#define GPIO_CONTROL_TASK_STACK_SIZE 512
+#define GPIO_CONTROL_TASK_STACK_SIZE 2048
 #define GPIO_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
-#define WIFI_CONTROL_TASK_STACK_SIZE 512
+#define WIFI_CONTROL_TASK_STACK_SIZE 2048
 #define WIFI_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
+#define SETUP_TASK_STACK_SIZE 2048
+#define SETUP_TASK_PRIORITY TASK_PRIORITY_NORMAL
 
 // Queue settings
 #define NEXT_POSITION_QUEUE_LENGTH 64
@@ -193,6 +195,22 @@ void StartDefaultTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
+/* Hook prototypes */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
+
+/* USER CODE BEGIN 4 */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
+{
+   /* Run time stack overflow checking is performed if
+   configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
+   called if a stack overflow is detected. */
+    printf("Stack Overflow: %s\n", pcTaskName);
+    while (1)
+    {
+    }
+}
+/* USER CODE END 4 */
+
 /**
   * @brief  FreeRTOS initialization
   * @param  None
@@ -282,9 +300,9 @@ void MX_FREERTOS_Init(void) {
     configASSERT(xTaskCreate(
           setupTask,
           "Setup",
-          configMINIMAL_STACK_SIZE,
+          SETUP_TASK_STACK_SIZE,
           NULL,
-          TASK_PRIORITY_NORMAL,
+          SETUP_TASK_PRIORITY,
           &setupTaskHandle) == pdPASS);
   /* USER CODE END RTOS_THREADS */
 
@@ -1060,3 +1078,4 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 }
 
 /* USER CODE END Application */
+
