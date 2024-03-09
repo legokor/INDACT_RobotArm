@@ -85,8 +85,5 @@ WC_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer, int max_len
 
 void WifiController_SerialHelper_UartRxCallback(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == serial.huart->Instance)
-    {
-        HardwareSupport_Serial_UartRxCallback(&serial);
-    }
+    HardwareSupport_Serial_UartRxCallback(&serial);
 }

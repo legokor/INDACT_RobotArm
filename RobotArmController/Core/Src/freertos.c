@@ -45,6 +45,7 @@
 
 #include "MotorControl/KAR_MC_handler.h"
 #include "WifiController/WifiController.h"
+#include "WifiController/SerialHelper.h"
 
 /* USER CODE END Includes */
 
@@ -80,13 +81,13 @@ typedef enum AppState
 #define INDICATOR_BLINKING_TASK_PRIORITY TASK_PRIORITY_LOWEST
 #define WIFI_RECEIVE_TASK_STACK_SIZE 2048
 #define WIFI_RECEIVE_TASK_PRIORITY TASK_PRIORITY_ABOVE_NORMAL
-#define DEMO_MOVE_CONTROL_TASK_STACK_SIZE 2048
+#define DEMO_MOVE_CONTROL_TASK_STACK_SIZE 1024
 #define DEMO_MOVE_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
-#define GPIO_CONTROL_TASK_STACK_SIZE 2048
+#define GPIO_CONTROL_TASK_STACK_SIZE 1024
 #define GPIO_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
-#define WIFI_CONTROL_TASK_STACK_SIZE 2048
+#define WIFI_CONTROL_TASK_STACK_SIZE 1024
 #define WIFI_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
-#define SETUP_TASK_STACK_SIZE 2048
+#define SETUP_TASK_STACK_SIZE 1024
 #define SETUP_TASK_PRIORITY TASK_PRIORITY_NORMAL
 
 // Queue settings
@@ -98,20 +99,16 @@ typedef enum AppState
 #define STATE_GPIO_CONTROL_BIT (1 << 1)
 #define STATE_WIFI_CONTROL_BIT (1 << 2)
 
-#define TASK_STARTED_INDICATOR_BLINKING_TASK_BIT (1 << 0)
-#define TASK_STARTED_WIFI_RECEIVE_TASK_BIT (1 << 1)
-#define TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT (1 << 2)
-#define TASK_STARTED_GPIO_CONTROL_TASK_BIT (1 << 3)
-#define TASK_STARTED_WIFI_CONTROL_TASK_BIT (1 << 4)
-
-#define USB_HUART (&huart1)
+//#define TASK_STARTED_INDICATOR_BLINKING_TASK_BIT (1 << 0)
+//#define TASK_STARTED_WIFI_RECEIVE_TASK_BIT (1 << 1)
+//#define TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT (1 << 2)
+//#define TASK_STARTED_GPIO_CONTROL_TASK_BIT (1 << 3)
+//#define TASK_STARTED_WIFI_CONTROL_TASK_BIT (1 << 4)
 
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
-#define ABS(X) (((X) < 0) ? (-(X)) : (X))
 
 /* USER CODE END PM */
 
@@ -139,6 +136,8 @@ TaskHandle_t wifiReceiveTaskHandle = NULL;
 // Semaphores and mutexes
 StaticSemaphore_t controlMutexBuffer;
 SemaphoreHandle_t controlMutexHandle = NULL;
+StaticSemaphore_t wifiReceiveStartedFlagBuffer;
+SemaphoreHandle_t wifiReceiveStartedFlagHandle = NULL;
 
 // Queue variables
 static StaticQueue_t nextPositionQueueBuffer;
@@ -148,13 +147,11 @@ QueueHandle_t nextPositionQueueHandle = NULL;
 // Event group variables
 static StaticEventGroup_t stateEventGroupBuffer;
 EventGroupHandle_t stateEventGroupHandle = NULL;
-static StaticEventGroup_t taskStartedEventGroupBuffer;
-EventGroupHandle_t taskStartedEventGroupHandle = NULL;
+//static StaticEventGroup_t taskStartedEventGroupBuffer;
+//EventGroupHandle_t taskStartedEventGroupHandle = NULL;
 
 // Other variables
 volatile AppState_t appState = AppState_Idle;
-
-WifiController_ActionList_t wifiActionList;
 
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
@@ -309,8 +306,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_EVENTS */
     stateEventGroupHandle = xEventGroupCreateStatic(&stateEventGroupBuffer);
     configASSERT(stateEventGroupHandle != NULL);
-    taskStartedEventGroupHandle = xEventGroupCreateStatic(&taskStartedEventGroupBuffer);
-    configASSERT(taskStartedEventGroupHandle != NULL);
+//    taskStartedEventGroupHandle = xEventGroupCreateStatic(&taskStartedEventGroupBuffer);
+//    configASSERT(taskStartedEventGroupHandle != NULL);
   /* USER CODE END RTOS_EVENTS */
 
 }
@@ -610,8 +607,21 @@ static void setupWifi()
     const char *ap_ssid = "indactrobot";
     const char *ap_password = "pirosalma";
 
+    int count = 0;
+    while ((uxSemaphoreGetCount(wifiReceiveStartedFlagHandle) == 0)
+            && (count < 100))
+    {
+        count++;
+        vTaskDelay(10);
+    }
+    if (uxSemaphoreGetCount(wifiReceiveStartedFlagHandle) == 0)
+    {
+        logError("WifiReceive task was not started.");
+        return;
+    }
+
     // Wait for the module to start after power-up
-    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
     if (WifiController_WifiController_ResetModule() != WC_ErrorCode_NONE)
     {
@@ -620,7 +630,7 @@ static void setupWifi()
     }
 
     // Wait for the module to reset
-    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
     if (WifiController_WifiController_SetSsid(ap_ssid) != WC_ErrorCode_NONE)
     {
@@ -634,7 +644,7 @@ static void setupWifi()
         return;
     }
 
-    if (WifiController_WifiController_BeginAccessPoint(10 * 1000) != WC_ErrorCode_NONE)
+    if (WifiController_WifiController_BeginAccessPoint(10000) != WC_ErrorCode_NONE)
     {
         logError("Wi-Fi begin access point error.");
         return;
@@ -643,13 +653,13 @@ static void setupWifi()
 
 void setupTask(void *pvParameters)
 {
-    // Wait for tasks to be ready
-    xEventGroupWaitBits(
-            taskStartedEventGroupHandle,
-            TASK_STARTED_WIFI_RECEIVE_TASK_BIT,
-            pdFALSE,
-            pdTRUE,
-            portMAX_DELAY);
+//    // Wait for tasks to be ready
+//    xEventGroupWaitBits(
+//            taskStartedEventGroupHandle,
+//            TASK_STARTED_WIFI_RECEIVE_TASK_BIT,
+//            pdFALSE,
+//            pdTRUE,
+//            portMAX_DELAY);
 
     // ================================================================================
     // Wi-Fi settings
@@ -681,9 +691,9 @@ void setupTask(void *pvParameters)
  */
 void indicatorBlinkingTask(void *pvParameters)
 {
-    // Signal that the task is ready to run
-    // xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_INDICATOR_BLINKING_TASK_BIT);
-    // logInfo("Ready to run.");
+//    // Signal that the task is ready to run
+//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_INDICATOR_BLINKING_TASK_BIT);
+//    logInfo("Ready to run.");
 
     while (1)
     {
@@ -711,9 +721,11 @@ void wifiReceiveTask(void *pvParameters)
     WifiController_ActionList_t *action_list = WifiController_WifiController_GetActionList();
     WifiController_ActionList_Add(action_list, "/button", handleButtonAction);
 
-    // Signal that the task is ready to run
-    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_RECEIVE_TASK_BIT);
-    logInfo("Ready to run.");
+//    // Signal that the task is ready to run
+//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_RECEIVE_TASK_BIT);
+//    logInfo("Ready to run.");
+
+    xSemaphoreGive(wifiReceiveStartedFlagHandle);
 
     while (1)
     {
@@ -751,9 +763,9 @@ void demoMoveControlTask(void *pvParameters)
     positions[4].phi = 6000;
     positions[4].z = 5000;
 
-    // Signal that the task is ready to run
-    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT);
-    logInfo("Ready to run.");
+//    // Signal that the task is ready to run
+//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT);
+//    logInfo("Ready to run.");
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
@@ -826,9 +838,9 @@ void gpioControlTask(void *pvParameters)
             .GPIO_Pin = motor_z_negative_button_Pin
     };
 
-    // Signal that the task is ready to run
-    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_GPIO_CONTROL_TASK_BIT);
-    logInfo("Ready to run.");
+//    // Signal that the task is ready to run
+//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_GPIO_CONTROL_TASK_BIT);
+//    logInfo("Ready to run.");
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
@@ -867,9 +879,9 @@ void gpioControlTask(void *pvParameters)
 
 void wifiControlTask(void *pvParameters)
 {
-    // Signal that the task is ready to run
-    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_CONTROL_TASK_BIT);
-    logInfo("Ready to run.");
+//    // Signal that the task is ready to run
+//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_CONTROL_TASK_BIT);
+//    logInfo("Ready to run.");
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
@@ -1074,6 +1086,14 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         {
             stepper_motors[MC_MOTORID_Z].currPos++;
         }
+    }
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == huart8.Instance)
+    {
+        WifiController_SerialHelper_UartRxCallback(huart);
     }
 }
 
