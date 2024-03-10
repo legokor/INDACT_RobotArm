@@ -1093,7 +1093,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == huart8.Instance)
     {
-        WifiController_SerialHelper_UartRxCallback(huart);
+        WifiController_SerialHelper_UartRxCallback();
     }
 }
 

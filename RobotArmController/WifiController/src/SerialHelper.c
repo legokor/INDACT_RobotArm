@@ -83,7 +83,7 @@ WC_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer, int max_len
     return WC_ErrorCode_NONE;
 }
 
-void WifiController_SerialHelper_UartRxCallback(UART_HandleTypeDef *huart)
+void WifiController_SerialHelper_UartRxCallback()
 {
     HardwareSupport_Serial_UartRxCallback(&serial);
 }

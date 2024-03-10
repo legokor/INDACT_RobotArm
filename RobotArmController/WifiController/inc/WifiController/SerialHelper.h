@@ -42,11 +42,9 @@ WC_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer, int max_len
 /**
  * @brief Callback function that is called when a byte is received through the serial port.
  * 
- * @param huart The UART handle.
- * 
  * @details This function should be called from the UART receive interrupt handler (HAL_UART_RxCpltCallback).
  *     It is used to implement the read message function.
  */
-void WifiController_SerialHelper_UartRxCallback(UART_HandleTypeDef *huart);
+void WifiController_SerialHelper_UartRxCallback();
 
 #endif /* WIFICONTROLLER_SERIALHELPER_H_ */
