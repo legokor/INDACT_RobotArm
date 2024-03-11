@@ -334,11 +334,19 @@ void StartDefaultTask(void *argument)
             "position: (%ld, %ld, %ld), state: %d",
             cp.r, cp.phi, cp.z,
             appState);
+
+        size_t free_heap_size = xPortGetFreeHeapSize();
+        size_t minimum_free_heap_size = xPortGetMinimumEverFreeHeapSize();
         logInfo(
-            "null: (%ld, %ld, %ld)",
-            limit_switches[MC_MOTORID_R].null_point,
-            limit_switches[MC_MOTORID_PHI].null_point,
-            limit_switches[MC_MOTORID_Z].null_point);
+            "heap\n"
+            "\t- free heap: %ul / %ul (%d %%)\n"
+            "\t- minimum free heap: %ul / %ul (%d %%)",
+            free_heap_size,
+            configTOTAL_HEAP_SIZE,
+            100 * free_heap_size / configTOTAL_HEAP_SIZE,
+            minimum_free_heap_size,
+            configTOTAL_HEAP_SIZE,
+            100 * minimum_free_heap_size / configTOTAL_HEAP_SIZE);
 
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
