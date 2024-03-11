@@ -52,12 +52,8 @@ size_t HardwareSupport_Serial_GetAvailable(HardwareSupport_Serial_t *this)
     return xStreamBufferBytesAvailable(this->rxBuffer);
 }
 
-void HardwareSupport_Serial_UartRxCallback(HardwareSupport_Serial_t *this)
+void HardwareSupport_Serial_UartRxCallbackFromISR(HardwareSupport_Serial_t *this, BaseType_t *const pxHigherPriorityTaskWoken)
 {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-    xStreamBufferSendFromISR(this->rxBuffer, (uint8_t*)(&(this->rxChar)), 1, &xHigherPriorityTaskWoken);
+    xStreamBufferSendFromISR(this->rxBuffer, (uint8_t*)(&(this->rxChar)), 1, pxHigherPriorityTaskWoken);
     HAL_UART_Receive_IT(this->huart, (uint8_t*)(&(this->rxChar)), 1);
-
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }

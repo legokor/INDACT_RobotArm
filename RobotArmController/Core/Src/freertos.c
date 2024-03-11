@@ -406,10 +406,8 @@ static void homingSequence()
     }
 }
 
-static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken)
+static void changeAppStateFromISR(BaseType_t *pxHigherPriorityTaskWoken)
 {
-    *xHigherPriorityTaskWoken = pdFALSE;
-
     // Change the app state and wake up the appropriate task.
     switch (appState)
     {
@@ -418,28 +416,28 @@ static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken)
         xEventGroupSetBitsFromISR(
                 stateEventGroupHandle,
                 STATE_DEMO_MOVE_CONTROL_BIT,
-                xHigherPriorityTaskWoken);
+                pxHigherPriorityTaskWoken);
         break;
     case AppState_DemoMoveControl:
         appState = AppState_GpioControl;
         xEventGroupSetBitsFromISR(
                 stateEventGroupHandle,
                 STATE_GPIO_CONTROL_BIT,
-                xHigherPriorityTaskWoken);
+                pxHigherPriorityTaskWoken);
         break;
     case AppState_GpioControl:
         appState = AppState_WifiControl;
         xEventGroupSetBitsFromISR(
                 stateEventGroupHandle,
                 STATE_WIFI_CONTROL_BIT,
-                xHigherPriorityTaskWoken);
+                pxHigherPriorityTaskWoken);
         break;
     case AppState_WifiControl:
         appState = AppState_DemoMoveControl;
         xEventGroupSetBitsFromISR(
                 stateEventGroupHandle,
                 STATE_DEMO_MOVE_CONTROL_BIT,
-                xHigherPriorityTaskWoken);
+                pxHigherPriorityTaskWoken);
         break;
     default:
         appState = AppState_Error;
@@ -716,7 +714,7 @@ void indicatorBlinkingTask(void *pvParameters)
 
 void wifiReceiveTask(void *pvParameters)
 {
-    configASSERT(WifiController_WifiController_Init() == WC_ErrorCode_NONE);
+    configASSERT(WifiController_WifiController_Init(&huart8) == WC_ErrorCode_NONE);
 
     WifiController_ActionList_t *action_list = WifiController_WifiController_GetActionList();
     WifiController_ActionList_Add(action_list, "/button", handleButtonAction);
@@ -1091,10 +1089,14 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
     if (huart->Instance == huart8.Instance)
     {
-        WifiController_SerialHelper_UartRxCallback();
+        WifiController_SerialHelper_UartRxCallbackFromISR(&xHigherPriorityTaskWoken);
     }
+
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 /* USER CODE END Application */

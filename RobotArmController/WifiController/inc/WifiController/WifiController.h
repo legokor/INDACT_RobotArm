@@ -1,6 +1,8 @@
 #ifndef WIFICONTROLLER_WIFICONTROLLER_H_
 #define WIFICONTROLLER_WIFICONTROLLER_H_
 
+#include "stm32f7xx_hal.h"
+
 #include "WifiController/ActionList.h"
 #include "WifiController/Common.h"
 #include "WifiController/IpAddress.h"
@@ -74,7 +76,7 @@
  *
  * void wifiReceiveTask(void *pvParameters)
  * {
- *     configASSERT(WifiController_WifiController_Init() == WC_ErrorCode_NONE);
+ *     configASSERT(WifiController_WifiController_Init(&huart1) == WC_ErrorCode_NONE);
  *
  *     WifiController_ActionList_t *action_list = WifiController_WifiController_GetActionList();
  *     WifiController_ActionList_Add(action_list, "/button", handleButtonAction);
@@ -89,11 +91,13 @@
 /**
  * @brief Initializes the WifiController.
  *
+ * @param huart Handle of the UART peripherial that is used for the
+ *     communication with the Wi-Fi module.
  * @return Error code.
  *
  * @note This function must be called before any other function in this file.
  */
-WC_ErrorCode_t WifiController_WifiController_Init();
+WC_ErrorCode_t WifiController_WifiController_Init(UART_HandleTypeDef *huart);
 
 /**
  * @brief Deletes the WifiController.

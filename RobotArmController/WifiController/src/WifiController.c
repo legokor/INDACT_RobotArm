@@ -3,7 +3,9 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include <WifiController/EventGroup.h>
+#include <FreeRTOS.h>
+#include <event_groups.h>
+
 #include <WifiController/protocols.h>
 #include "WifiController/SerialHelper.h"
 
@@ -13,6 +15,13 @@
 #define PASSWORD_MAX_LENGTH 63
 
 #define RESPONSE_TYPE_MAX_LENGTH 16
+
+/** Bit for OK event. */
+#define WifiController_EventGroup_OkBit ((EventBits_t)(1 << 0))
+/** Bit for FAIL event. */
+#define WifiController_EventGroup_FailBit ((EventBits_t)(1 << 1))
+/** Bit for IP event. */
+#define WifiController_EventGroup_IpBit ((EventBits_t)(1 << 2))
 
 static bool initialized = false;
 
@@ -27,6 +36,9 @@ static WifiController_IpAddress_t ipAddress;
 static int responseTimeout = 1000;
 static WifiController_ActionList_t actionList;
 
+static StaticEventGroup_t egBuffer;
+static EventGroupHandle_t egHandle = NULL;
+
 static WC_ErrorCode_t wait_confirm();
 static WC_ErrorCode_t wait_ip_address(int timeout_ms);
 static bool check_ssid(const char *value);
@@ -35,20 +47,22 @@ static WC_ErrorCode_t process_message(const char *message);
 static WC_ErrorCode_t execute_message(const char *cmd, const char *params);
 static WC_ErrorCode_t call_action(const char *params);
 
-WC_ErrorCode_t WifiController_WifiController_Init()
+WC_ErrorCode_t WifiController_WifiController_Init(UART_HandleTypeDef *huart)
 {
     WC_ErrorCode_t error_code = WC_ErrorCode_UNKNOWN;
 
-    error_code = WifiController_SerialHelper_Init();
+    error_code = WifiController_SerialHelper_Init(huart);
     if (error_code != WC_ErrorCode_NONE)
     {
         return error_code;
     }
 
-    error_code = WifiController_EventGroup_Init();
-    if (error_code != WC_ErrorCode_NONE)
+    egHandle = xEventGroupCreateStatic(&egBuffer);
+    if (egHandle == NULL)
     {
-        return error_code;
+        // The static constructor should only fail if the buffer is NULL. This
+        // should never happen.
+        return WC_ErrorCode_UNKNOWN;
     }
 
     WifiController_IpAddress_Init(&ipAddress);
@@ -62,7 +76,7 @@ void WifiController_WifiController_Delete()
 {
     initialized = false;
     WifiController_ActionList_Delete(&actionList);
-    WifiController_SerialHelper_Delete();
+    vEventGroupDelete(egHandle);
 }
 
 const char* WifiController_WifiController_GetSsid()
@@ -207,7 +221,8 @@ WC_ErrorCode_t WifiController_WifiController_Receive()
 
 static WC_ErrorCode_t wait_confirm()
 {
-    EventBits_t bits = xEventGroupWaitBits(WifiController_EventGroup_GetHandle(),
+    EventBits_t bits = xEventGroupWaitBits(
+            egHandle,
             WifiController_EventGroup_OkBit | WifiController_EventGroup_FailBit,
             pdTRUE,
             pdFALSE,
@@ -226,7 +241,8 @@ static WC_ErrorCode_t wait_confirm()
 
 static WC_ErrorCode_t wait_ip_address(int timeout_ms)
 {
-    EventBits_t bits = xEventGroupWaitBits(WifiController_EventGroup_GetHandle(),
+    EventBits_t bits = xEventGroupWaitBits(
+            egHandle,
             WifiController_EventGroup_IpBit | WifiController_EventGroup_FailBit,
             pdTRUE,
             pdFALSE,
@@ -302,11 +318,11 @@ static WC_ErrorCode_t execute_message(const char *cmd, const char *params)
     }
     else if (strcmp(cmd, STR_CONFIRM) == 0)
     {
-        xEventGroupSetBits(WifiController_EventGroup_GetHandle(), WifiController_EventGroup_OkBit);
+        xEventGroupSetBits(egHandle, WifiController_EventGroup_OkBit);
     }
     else if (strcmp(cmd, STR_FAIL) == 0)
     {
-        xEventGroupSetBits(WifiController_EventGroup_GetHandle(), WifiController_EventGroup_FailBit);
+        xEventGroupSetBits(egHandle, WifiController_EventGroup_FailBit);
     }
     else if (strcmp(cmd, STR_IP) == 0)
     {
@@ -319,7 +335,7 @@ static WC_ErrorCode_t execute_message(const char *cmd, const char *params)
             WifiController_IpAddress_SetAddress(&ipAddress, 0);
             error_code = WC_ErrorCode_CONTROLLER;
         }
-        xEventGroupSetBits(WifiController_EventGroup_GetHandle(), WifiController_EventGroup_IpBit);
+        xEventGroupSetBits(egHandle, WifiController_EventGroup_IpBit);
     }
     else
     {

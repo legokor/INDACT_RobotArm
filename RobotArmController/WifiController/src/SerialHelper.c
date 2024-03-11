@@ -11,9 +11,9 @@ static HardwareSupport_Serial_t serial;
 static const char *beginMarker = MESSAGE_BEGIN_MARKER;
 static const char *endMarker = MESSAGE_END_MARKER;
 
-WC_ErrorCode_t WifiController_SerialHelper_Init()
+WC_ErrorCode_t WifiController_SerialHelper_Init(UART_HandleTypeDef *huart)
 {
-    if (!HardwareSupport_Serial_Init(&serial, WifiController_SerialHelper_Config_Huart, (MESSAGE_MAX_SIZE + 3)))
+    if (!HardwareSupport_Serial_Init(&serial, huart, (MESSAGE_MAX_SIZE + 3)))
     {
         return WC_ErrorCode_MEMORY_ALLOCATION;
     }
@@ -83,7 +83,7 @@ WC_ErrorCode_t WifiController_SerialHelper_ReadMessage(char *buffer, int max_len
     return WC_ErrorCode_NONE;
 }
 
-void WifiController_SerialHelper_UartRxCallback()
+void WifiController_SerialHelper_UartRxCallbackFromISR(BaseType_t *const pxHigherPriorityTaskWoken)
 {
-    HardwareSupport_Serial_UartRxCallback(&serial);
+    HardwareSupport_Serial_UartRxCallbackFromISR(&serial, pxHigherPriorityTaskWoken);
 }

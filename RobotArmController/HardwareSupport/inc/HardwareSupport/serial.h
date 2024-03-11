@@ -85,13 +85,18 @@ size_t HardwareSupport_Serial_GetAvailable(HardwareSupport_Serial_t *this);
  * @brief Callback function for the UART receive interrupt.
  * 
  * @param this Pointer to the serial port structure.
+ * @param pxHigherPriorityTaskWoken If calling this function causes a task to
+ *     leave the Blocked state, and the unblocked task has a priority higher
+ *     than the currently executing task (the task that was interrupted), then,
+ *     internally, this function will set the value to pdTRUE. The value should
+ *     be set to pdFALSE before it is passed into the function.
  * 
  * @details This function should be called from the UART receive interrupt.
  *     The function will store the received character in the receive buffer.
  *     This should only be called if the interrupt was caused by the UART
  *     peripheral that is used by this serial port.
  */
-void HardwareSupport_Serial_UartRxCallback(HardwareSupport_Serial_t *this);
+void HardwareSupport_Serial_UartRxCallbackFromISR(HardwareSupport_Serial_t *this, BaseType_t *const pxHigherPriorityTaskWoken);
 
 #if defined( __cplusplus )
 }
