@@ -613,6 +613,9 @@ static void setupWifi()
     const char *ap_ssid = "indactrobot";
     const char *ap_password = "pirosalma";
 
+    WifiController_ActionList_t *action_list = WifiController_WifiController_GetActionList();
+    WifiController_ActionList_Add(action_list, "/button", handleButtonAction);
+
     int count = 0;
     while ((uxSemaphoreGetCount(wifiReceiveStartedFlagHandle) == 0)
             && (count < 100))
@@ -722,11 +725,6 @@ void indicatorBlinkingTask(void *pvParameters)
 
 void wifiReceiveTask(void *pvParameters)
 {
-    configASSERT(WifiController_WifiController_Init(&huart8) == WC_ErrorCode_NONE);
-
-    WifiController_ActionList_t *action_list = WifiController_WifiController_GetActionList();
-    WifiController_ActionList_Add(action_list, "/button", handleButtonAction);
-
 //    // Signal that the task is ready to run
 //    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_RECEIVE_TASK_BIT);
 //    logInfo("Ready to run.");
