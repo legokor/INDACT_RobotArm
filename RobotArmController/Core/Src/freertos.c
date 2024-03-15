@@ -220,6 +220,7 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_MUTEX */
     controlMutexHandle = xSemaphoreCreateMutexStatic(&controlMutexBuffer);
+    wifiReceiveStartedFlagHandle = xSemaphoreCreateBinaryStatic(&wifiReceiveStartedFlagBuffer);
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -525,9 +526,9 @@ static void sendNewPosition(const char *btn)
     position.z = stepper_motors[MC_MOTORID_Z].currPos;
     vPortExitCritical();
 
-    const MC_Step_t d = 10;
+    const MC_Step_t d = 100;
 
-    if (strncmp(btn, "rp", 2))
+    if (strncmp(btn, "rp", 2) == 0)
     {
         position.r += d;
         if (position.r > MC_MAXPOS_R)
@@ -535,7 +536,7 @@ static void sendNewPosition(const char *btn)
             position.r = MC_MAXPOS_R;
         }
     }
-    else if (strncmp(btn, "rn", 2))
+    else if (strncmp(btn, "rm", 2) == 0)
     {
         position.r -= d;
         if (position.r < 0)
@@ -543,7 +544,7 @@ static void sendNewPosition(const char *btn)
             position.r = 0;
         }
     }
-    else if (strncmp(btn, "fp", 2))
+    else if (strncmp(btn, "fp", 2) == 0)
     {
         position.phi += d;
         if (position.phi > MC_MAXPOS_PHI)
@@ -551,7 +552,7 @@ static void sendNewPosition(const char *btn)
             position.phi = MC_MAXPOS_PHI;
         }
     }
-    else if (strncmp(btn, "fn", 2))
+    else if (strncmp(btn, "fm", 2) == 0)
     {
         position.phi -= d;
         if (position.phi < 0)
@@ -559,7 +560,7 @@ static void sendNewPosition(const char *btn)
             position.phi = 0;
         }
     }
-    else if (strncmp(btn, "zp", 2))
+    else if (strncmp(btn, "zp", 2) == 0)
     {
         position.z += d;
         if (position.phi > MC_MAXPOS_Z)
@@ -567,7 +568,7 @@ static void sendNewPosition(const char *btn)
             position.phi = MC_MAXPOS_Z;
         }
     }
-    else if (strncmp(btn, "zn", 2))
+    else if (strncmp(btn, "zm", 2) == 0)
     {
         position.z -= d;
         if (position.phi < 0)
@@ -575,7 +576,7 @@ static void sendNewPosition(const char *btn)
             position.phi = 0;
         }
     }
-    else if (strncmp(btn, "hx", 2))
+    else if (strncmp(btn, "hx", 2) == 0)
     {
         position.r = 0;
         position.phi = 0;
