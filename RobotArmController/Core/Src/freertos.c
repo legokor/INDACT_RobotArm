@@ -99,12 +99,6 @@ typedef enum AppState
 #define STATE_GPIO_CONTROL_BIT (1 << 1)
 #define STATE_WIFI_CONTROL_BIT (1 << 2)
 
-//#define TASK_STARTED_INDICATOR_BLINKING_TASK_BIT (1 << 0)
-//#define TASK_STARTED_WIFI_RECEIVE_TASK_BIT (1 << 1)
-//#define TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT (1 << 2)
-//#define TASK_STARTED_GPIO_CONTROL_TASK_BIT (1 << 3)
-//#define TASK_STARTED_WIFI_CONTROL_TASK_BIT (1 << 4)
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -147,8 +141,6 @@ QueueHandle_t nextPositionQueueHandle = NULL;
 // Event group variables
 static StaticEventGroup_t stateEventGroupBuffer;
 EventGroupHandle_t stateEventGroupHandle = NULL;
-//static StaticEventGroup_t taskStartedEventGroupBuffer;
-//EventGroupHandle_t taskStartedEventGroupHandle = NULL;
 
 // Other variables
 volatile AppState_t appState = AppState_Idle;
@@ -307,8 +299,6 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_EVENTS */
     stateEventGroupHandle = xEventGroupCreateStatic(&stateEventGroupBuffer);
     configASSERT(stateEventGroupHandle != NULL);
-//    taskStartedEventGroupHandle = xEventGroupCreateStatic(&taskStartedEventGroupBuffer);
-//    configASSERT(taskStartedEventGroupHandle != NULL);
   /* USER CODE END RTOS_EVENTS */
 
 }
@@ -663,14 +653,6 @@ static void setupWifi()
 
 void setupTask(void *pvParameters)
 {
-//    // Wait for tasks to be ready
-//    xEventGroupWaitBits(
-//            taskStartedEventGroupHandle,
-//            TASK_STARTED_WIFI_RECEIVE_TASK_BIT,
-//            pdFALSE,
-//            pdTRUE,
-//            portMAX_DELAY);
-
     // ================================================================================
     // Wi-Fi settings
     // ================================================================================
@@ -701,10 +683,6 @@ void setupTask(void *pvParameters)
  */
 void indicatorBlinkingTask(void *pvParameters)
 {
-//    // Signal that the task is ready to run
-//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_INDICATOR_BLINKING_TASK_BIT);
-//    logInfo("Ready to run.");
-
     while (1)
     {
         if (appState == AppState_Error)
@@ -726,10 +704,6 @@ void indicatorBlinkingTask(void *pvParameters)
 
 void wifiReceiveTask(void *pvParameters)
 {
-//    // Signal that the task is ready to run
-//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_RECEIVE_TASK_BIT);
-//    logInfo("Ready to run.");
-
     xSemaphoreGive(wifiReceiveStartedFlagHandle);
 
     while (1)
@@ -767,10 +741,6 @@ void demoMoveControlTask(void *pvParameters)
     positions[4].r = 200;
     positions[4].phi = 6000;
     positions[4].z = 5000;
-
-//    // Signal that the task is ready to run
-//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_DEMO_MOVE_CONTROL_TASK_BIT);
-//    logInfo("Ready to run.");
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
@@ -843,10 +813,6 @@ void gpioControlTask(void *pvParameters)
             .GPIO_Pin = motor_z_negative_button_Pin
     };
 
-//    // Signal that the task is ready to run
-//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_GPIO_CONTROL_TASK_BIT);
-//    logInfo("Ready to run.");
-
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
     logInfo("Take control.");
@@ -884,10 +850,6 @@ void gpioControlTask(void *pvParameters)
 
 void wifiControlTask(void *pvParameters)
 {
-//    // Signal that the task is ready to run
-//    xEventGroupSetBits(taskStartedEventGroupHandle, TASK_STARTED_WIFI_CONTROL_TASK_BIT);
-//    logInfo("Ready to run.");
-
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
     logInfo("Take control.");
