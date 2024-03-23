@@ -951,7 +951,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     {
     case controller_mode_switch_Pin:
         static uint32_t last_tick = 0;
-        if (debounce(&last_tick, 200))
+        if (debounce(&last_tick, 500))
         {
             changeAppStateFromISR(&xHigherPriorityTaskWoken);
         }
