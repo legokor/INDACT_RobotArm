@@ -962,7 +962,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_R].currPos = 0;
             stepper_motors[MC_MOTORID_R].allowedDir = MC_ALLOWDIR_POSDIR;
-            printf("lsw_r_null\n");
         }
         else
         {
@@ -980,7 +979,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_R].allowedDir = MC_ALLOWDIR_BOTHDIR;
         }
-        printf("lsw_r_max\n");
         break;
     case lsw_phi_null_Pin: // || lsw_z_null_Pin (These pins have the same number.)
         limit_switches[MC_MOTORID_PHI].null_point = HAL_GPIO_ReadPin(lsw_phi_null_GPIO_Port, lsw_phi_null_Pin) == LSW_PHI_NULL_ACTIVE;
@@ -988,7 +986,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_PHI].currPos = 0;
             stepper_motors[MC_MOTORID_PHI].allowedDir = MC_ALLOWDIR_POSDIR;
-            printf("lsw_phi_null\n");
         }
         else
         {
@@ -1005,7 +1002,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_PHI].allowedDir = MC_ALLOWDIR_BOTHDIR;
         }
-        printf("lsw_phi_max\n");
         break;
     case lsw_z_null_Pin:
         limit_switches[MC_MOTORID_Z].null_point = HAL_GPIO_ReadPin(lsw_z_null_GPIO_Port, lsw_z_null_Pin) == LSW_Z_NULL_ACTIVE;
@@ -1013,7 +1009,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_Z].currPos = 0;
             stepper_motors[MC_MOTORID_Z].allowedDir = MC_ALLOWDIR_POSDIR;
-            printf("lsw_z_null\n");
         }
         else
         {
@@ -1031,7 +1026,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         {
             stepper_motors[MC_MOTORID_Z].allowedDir = MC_ALLOWDIR_BOTHDIR;
         }
-        printf("lsw_z_max_Pin\n");
         break;
     }
 
