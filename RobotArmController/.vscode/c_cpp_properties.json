@@ -14,11 +14,12 @@
                 "${workspaceFolder}/Libraries",
                 "${workspaceFolder}/MotorControl/inc",
                 "${workspaceFolder}/HardwareSupport/inc",
-                "${workspaceFolder}/WifiController/inc"
+                "${workspaceFolder}/WifiController/inc",
+                "${workspaceFolder}/Lcd16x2/inc"
             ],
             "defines": [
                 "DEBUG",
-                "STM32F429xx",
+                "STM32F746xx",
                 "USE_HAL_DRIVER"
             ]
         }
