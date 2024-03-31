@@ -11,18 +11,6 @@
 #define SET_DDRAM_ADDRESS 0x80
 /* } Instructions */
 
-/* Entry mode set flags { */
-#define CURSOR_INCREMENT 0x02
-#define DISPLAY_SHIFT_LEFT 0x03
-#define DISPLAY_SHIFT_RIGHT 0x01
-/* } Entry mode set flags */
-
-/* Display control flags { */
-#define DISPLAY_ON 0x04
-#define CURSOR_ON 0x02
-#define BLINK_ON 0x01
-/* } Display control flags */
-
 /* Function set flags { */
 #define DATA_LENGTH_8_BITS 0x10
 #define DISPLAY_LINES_2 0x08

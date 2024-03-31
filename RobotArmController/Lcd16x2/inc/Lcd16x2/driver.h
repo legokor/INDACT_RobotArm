@@ -9,6 +9,18 @@
 
 #include "stm32f7xx_hal.h"
 
+/* Entry mode set flags { */
+#define CURSOR_INCREMENT 0x02
+#define DISPLAY_SHIFT_LEFT 0x03
+#define DISPLAY_SHIFT_RIGHT 0x01
+/* } Entry mode set flags */
+
+/* Display control flags { */
+#define DISPLAY_ON 0x04
+#define CURSOR_ON 0x02
+#define BLINK_ON 0x01
+/* } Display control flags */
+
 /**
  * @brief Structure representing a GPIO pin for the LCD 16x2 module.
  */
