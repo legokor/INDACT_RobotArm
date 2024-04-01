@@ -35,6 +35,7 @@
 #include "queue.h"
 #include "semphr.h"
 
+#include "lcd.h"
 #include "limitswitch.h"
 #include "logger.h"
 #include "rtos_priorities.h"
@@ -172,6 +173,7 @@ void wifiReceiveTask(void *pvParameters);
 
 static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken);
 static bool debounce(uint32_t *last_tick, uint32_t tick_count);
+static inline const char *get_app_state_name(AppState_t as);
 static void handleButtonAction(const char *args);
 static void homingSequence();
 static void moveToPosition(const PositionCylindrical_t *position);
@@ -320,11 +322,17 @@ void StartDefaultTask(void *argument)
         cp.r = stepper_motors[MC_MOTORID_R].currPos;
         cp.phi = stepper_motors[MC_MOTORID_PHI].currPos;
         cp.z = stepper_motors[MC_MOTORID_Z].currPos;
+        const char *app_state_name = get_app_state_name(appState);
         vPortExitCritical();
         logInfo(
-            "position: (%ld, %ld, %ld), state: %d",
+            "position: (%ld, %ld, %ld), state: \"%s\"",
             cp.r, cp.phi, cp.z,
-            appState);
+            app_state_name);
+
+        Lcd16x2_ClearDisplay(&hlcd1);
+        Lcd16x2_WriteString(hlcd1, app_state_name);
+        Lcd16x2_SetCursor(&hlcd1, 1, 0);
+        Lcd16x2_Printf(&hlcd1, "(%ld,%ld,%ld)");
 
         size_t free_heap_size = xPortGetFreeHeapSize();
         size_t minimum_free_heap_size = xPortGetMinimumEverFreeHeapSize();
@@ -346,6 +354,23 @@ void StartDefaultTask(void *argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
+static inline const char *get_app_state_name(AppState_t as)
+{
+    switch (as)
+    {
+    case AppState_Idle:
+        return "Idle";
+    case AppState_DemoMoveControl:
+        return "DemoMoveControl";
+    case AppState_GpioControl:
+        return "GpioControl";
+    case AppState_WifiControl:
+        return "WifiControl";
+    default:
+        return "Error";
+    }
+}
 
 /*
  *===================================================================*

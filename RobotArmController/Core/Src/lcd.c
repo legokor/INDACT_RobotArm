@@ -32,4 +32,6 @@ void initLcd()
     hlcd1.entry_mode_set = CURSOR_INCREMENT;
 
     hlcd1.display_control = DISPLAY_ON | CURSOR_ON;
+
+    Lcd16x2_Init(&hlcd1);
 }
