@@ -330,7 +330,7 @@ void StartDefaultTask(void *argument)
             app_state_name);
 
         Lcd16x2_ClearDisplay(&hlcd1);
-        Lcd16x2_WriteString(hlcd1, app_state_name);
+        Lcd16x2_WriteString(&hlcd1, app_state_name);
         Lcd16x2_SetCursor(&hlcd1, 1, 0);
         Lcd16x2_Printf(&hlcd1, "(%ld,%ld,%ld)");
 
