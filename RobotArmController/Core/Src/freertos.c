@@ -37,6 +37,7 @@
 
 #include "limitswitch.h"
 #include "logger.h"
+#include "mechanical_conf.h"
 #include "rtos_priorities.h"
 #include "stepper_motor.h"
 #include "tim.h"
@@ -599,6 +600,69 @@ static void handleButtonAction(const char *args)
     logInfo("Button action: %s", btn);
 }
 
+const char *find_param_value(const char *message, const char *param_name)
+{
+    // TODO: This is just an arbitrary number. Further investigation needed!
+    #define MAX_PARAM_NAME_LENGTH 32
+
+    char pattern[MAX_PARAM_NAME_LENGTH + 2] = {'\0'};
+    snprintf(pattern, MAX_PARAM_NAME_LENGTH + 2, "%s=", param_name);
+    char *start = strstr(message, pattern);
+    if (!start)
+    {
+        return NULL;
+    }
+    return start + strlen(pattern);
+}
+
+static void handleCoordCylAction(const char *args)
+{
+    const char *param_r = "r";
+    const char *param_phi = "phi";
+    const char *param_z = "z";
+
+    PositionCylindrical_t position;
+    const char *param_value_ptr = NULL;
+    int param_value = 0;
+
+    param_value_ptr = find_param_value(args, param_r);
+    if (param_value_ptr != NULL)
+    {
+        sscanf(param_value_ptr, "%d", &param_value);
+        position.r = (param_value <= 0) ? 0 : (param_value > MOTOR_TOTAL_STEP_R) ? MOTOR_TOTAL_STEP_R : param_value;
+    }
+    else
+    {
+        position.r = param_value = 0;
+    }
+
+    param_value_ptr = find_param_value(args, param_phi);
+    if (param_value_ptr != NULL)
+    {
+        sscanf(param_value_ptr, "%d", &param_value);
+        position.phi = (param_value <= 0) ? 0 : (param_value > MOTOR_TOTAL_STEP_PHI) ? MOTOR_TOTAL_STEP_PHI : param_value;
+    }
+    else
+    {
+        position.phi = param_value = 0;
+    }
+
+    param_value_ptr = find_param_value(args, param_z);
+    if (param_value_ptr != NULL)
+    {
+        sscanf(param_value_ptr, "%d", &param_value);
+        position.z = (param_value <= 0) ? 0 : (param_value > MOTOR_TOTAL_STEP_Z) ? MOTOR_TOTAL_STEP_Z : param_value;
+    }
+    else
+    {
+        position.z = param_value = 0;
+    }
+
+    logInfo("Leap: (%ld, %ld, %ld)", position.r, position.phi, position.z);
+
+    xQueueSend(nextPositionQueueHandle, &position, 10);
+}
+
 static void setupWifi()
 {
     const char *ap_ssid = "indactrobot";
@@ -606,6 +670,7 @@ static void setupWifi()
 
     WifiController_ActionList_t *action_list = WifiController_WifiController_GetActionList();
     WifiController_ActionList_Add(action_list, "/button", handleButtonAction);
+    WifiController_ActionList_Add(action_list, "/coord/cyl", handleCoordCylAction);
 
     int count = 0;
     while ((uxSemaphoreGetCount(wifiReceiveStartedFlagHandle) == 0)
