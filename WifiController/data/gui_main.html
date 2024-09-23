@@ -126,24 +126,23 @@
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            requestConfiguration();
-            const intervalId = setInterval(requestData, 1000);
+            requestData('/config');
+            const intervalId = setInterval(() => {
+                requestData('/data');
+            }, 1000);
         });
 
-        let isConnected = true;
+        let connectedState = true;
 
-        function requestConfiguration() {
+        function requestData(path) {
             const xhr = new XMLHttpRequest();
             const method = 'GET';
-            const url = window.location.origin + '/config';
+            const url = window.location.origin + path;
 
             xhr.open(method, url, true);
             xhr.responseType = 'json';
             xhr.onload = () => {
-                if (!isConnected) {
-                    setConnection(true, 'Connected');
-                    isConnected = true;
-                }
+                setConnection(true, 'Connected');
 
                 const status = xhr.status;
                 if (status === 200) {
@@ -154,41 +153,7 @@
                 }
             };
             xhr.onerror = () => {
-                if (isConnected) {
-                    setConnection(false, 'Connection error');
-                    isConnected = false;
-                }
-                console.log('Error while requesting data. Connection error.');
-            };
-            xhr.send();
-        }
-
-        function requestData() {
-            const xhr = new XMLHttpRequest();
-            const method = 'GET';
-            const url = window.location.origin + '/data';
-
-            xhr.open(method, url, true);
-            xhr.responseType = 'json';
-            xhr.onload = () => {
-                if (!isConnected) {
-                    setConnection(true, 'Connected');
-                    isConnected = true;
-                }
-
-                const status = xhr.status;
-                if (status === 200) {
-                    const data = xhr.response;
-                    setElementsFromData(data);
-                } else {
-                    console.log(`Error while requesting data! Received status: ${status}`);
-                }
-            };
-            xhr.onerror = () => {
-                if (isConnected) {
-                    setConnection(false, 'Connection error');
-                    isConnected = false;
-                }
+                setConnection(false, 'Connection error');
                 console.log('Error while requesting data. Connection error.');
             };
             xhr.send();
@@ -206,23 +171,21 @@
             }
 
             // Text field top
-            if ((data.text_field_top != null) && (data.text_field_top.length > 0)) {
-                document.getElementById('text_field_top').innerHTML = '';
-                for (let i = 0; i < data.text_field_top.length; i++) {
-                    document.getElementById('text_field_top').innerHTML += `<p class="text_paragraph">${data.text_field_top[i]}</p>`;
-                }
+            if (data.text_field_top != null) {
+                document.getElementById('text_field_top').innerHTML = data.text_field_top.map((text) => {
+                    return `<p class="text_paragraph">${text}</p>`;
+                }).join('');
             }
 
             // Text field bottom
-            if ((data.text_field_bottom != null) && (data.text_field_bottom.length > 0)) {
-                document.getElementById('text_field_bottom').innerHTML = '';
-                for (let i = 0; i < data.text_field_bottom.length; i++) {
-                    document.getElementById('text_field_bottom').innerHTML += `<p class="text_paragraph">${data.text_field_bottom[i]}</p>`;
-                }
+            if (data.text_field_bottom != null) {
+                document.getElementById('text_field_bottom').innerHTML = data.text_field_bottom.map((text) => {
+                    return `<p class="text_paragraph">${text}</p>`;
+                }).join('');
             }
 
             // Control table
-            if ((data.control_table != null) && (data.control_table.length > 0)) {
+            if (data.control_table != null) {
                 document.getElementById('control_table').innerHTML = data.control_table.map((row) => {
                     return `<tr><td class="row_label">${row.row_label}</td><td class="row_control">${row.row_control}</td></tr>`;
                 }).join('');
@@ -230,8 +193,8 @@
 
             // User script
             if (data.user_script != null) {
-                var HTML = `<script>${data.user_script}<\/script>`;
-                setInnerHtml(document.querySelector('#user_script'), HTML);
+                const scripHtml = `<script>${data.user_script}<\/script>`;
+                setInnerHtml(document.getElementById('user_script'), scripHtml);
             }
         }
 
@@ -248,17 +211,20 @@
             });
         }
 
-        function setConnection(isConnected, message) {
-            const loader = document.querySelector('#status_loader');
-            if (isConnected) {
+        function setConnection(connected, message) {
+            if (connected === connectedState) {
+                return;
+            }
+            connectedState = connected;
+            const loader = document.getElementById('status_loader');
+            if (connected) {
                 loader.style.animationPlayState = 'running';
                 loader.style.borderTopColor = 'blueviolet';
             } else {
                 loader.style.animationPlayState = 'paused';
                 loader.style.borderTopColor = 'red';
             }
-
-            document.querySelector('#status_message').innerHTML = message;
+            document.getElementById('status_message').innerHTML = message;
         }
     </script>
     <div id="user_script"></div>
