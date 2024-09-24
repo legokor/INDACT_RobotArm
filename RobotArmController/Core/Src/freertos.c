@@ -44,7 +44,7 @@
 #include "translation.h" // TODO: Solve naming conflicts.
 #include "usart.h"
 
-#include "MotorControl/KAR_MC_handler.h"
+#include "KAR_MC_handler.h"
 #include "WifiController/WifiController.h"
 #include "WifiController/SerialHelper.h"
 
@@ -973,11 +973,12 @@ void wifiControlTask(void *pvParameters)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    uint32_t last_tick = 0u;
 
     switch (GPIO_Pin)
     {
     case controller_mode_switch_Pin:
-        static uint32_t last_tick = 0;
+        last_tick = 0u;
         if (debounce(&last_tick, 500))
         {
             changeAppStateFromISR(&xHigherPriorityTaskWoken);

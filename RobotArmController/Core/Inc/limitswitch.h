@@ -6,8 +6,8 @@
 
 #include "stm32f7xx_hal.h"
 
-#include "MotorControl/KAR_MC_handler.h"
-#include "MotorControl/KAR_GEO_interface.h"
+#include "KAR_MC_handler.h"
+#include "KAR_GEO_interface.h"
 
 #define LSW_R_NULL_ACTIVE (GPIO_PIN_RESET)
 #define LSW_R_MAX_ACTIVE (GPIO_PIN_RESET)
