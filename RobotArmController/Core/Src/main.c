@@ -118,6 +118,8 @@ int main(void)
     initLimitswitches();
     initStepperMotors();
     initWifiModule();
+	// Set SPI3 NSS signal to idle
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
     initRetargetIo();
     Logger_Init(200);

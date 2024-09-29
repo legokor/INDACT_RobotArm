@@ -68,6 +68,11 @@
 #define MC_MAXPOS_Z 							(int32_t)49231u
 #define MC_MAXPOS_R 							(int32_t)1048u
 
+/**
+ * for PS2 usage
+ */
+#define MC_SPI_RXBUFFER_LENGTH					(8u)
+
 /****************************************************************************************************************
  * 																												*
  * Public Types																									*
@@ -114,6 +119,40 @@ typedef struct
 	s_GEN_GPIO ENA;					//motor enable GPIO pin
 	s_GEN_GPIO DIR;					//motor direction GPIO pin
 } s_MC_StepperMotor;
+
+/**
+ * For PS2 controller usage
+ * Bitmap of polling command (0x1 0x42) result
+ */
+typedef struct
+{
+	uint16_t select: 1;
+	uint16_t L3: 1;
+	uint16_t R3: 1;
+	uint16_t start: 1;
+	uint16_t up: 1;
+	uint16_t right: 1;
+	uint16_t down: 1;
+	uint16_t left: 1;
+	uint16_t L2: 1;
+	uint16_t R2: 1;
+	uint16_t L1: 1;
+	uint16_t R1: 1;
+	uint16_t triangle: 1;
+	uint16_t o: 1;
+	uint16_t x: 1;
+	uint16_t square: 1;
+}s_MC_PS2bitmap;
+
+/**
+ * For PS2 controller usage
+ */
+typedef union
+{
+	uint16_t U;
+	s_MC_PS2bitmap B;
+
+}u_MC_PS2response;
 
 /****************************************************************************************************************
  * 																												*
@@ -226,6 +265,11 @@ void v_MC_StopAllMotor_f(s_MC_StepperMotor *stepperMotors);
  */
 e_MC_ErrorCode_t u8_MC_ControlMotor_viaGPIO_f (s_MC_StepperMotor *stepper_motors, uint8_t motor_id, s_GEO_LimitSwitch* limit_switches,
 											   s_GEN_GPIO positive_button, s_GEN_GPIO negative_button);
+
+
+e_MC_ErrorCode_t u8_MC_HandlePS2Dir_f (s_MC_StepperMotor *stepper_motors, uint8_t motor_id, s_GEO_LimitSwitch* limit_switches,
+											   uint8_t pos_button_stat, uint8_t neg_button_stat);
+
 
 #endif		// KAR_MC_HANDLER_H
 

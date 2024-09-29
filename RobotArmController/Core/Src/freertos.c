@@ -43,6 +43,7 @@
 #include "tim.h"
 #include "translation.h" // TODO: Solve naming conflicts.
 #include "usart.h"
+#include "spi.h"
 
 #include "KAR_MC_handler.h"
 #include "WifiController/WifiController.h"
@@ -853,30 +854,10 @@ void demoMoveControlTask(void *pvParameters)
  */
 void gpioControlTask(void *pvParameters)
 {
-    s_GEN_GPIO r_pos_button = {
-            .GPIO_Port = motor_r_positive_button_GPIO_Port,
-            .GPIO_Pin = motor_r_positive_button_Pin
-    };
-    s_GEN_GPIO r_neg_button = {
-            .GPIO_Port = motor_r_negative_button_GPIO_Port,
-            .GPIO_Pin = motor_r_negative_button_Pin
-    };
-    s_GEN_GPIO fi_pos_button = {
-            .GPIO_Port = motor_fi_positive_button_GPIO_Port,
-            .GPIO_Pin = motor_fi_positive_button_Pin
-    };
-    s_GEN_GPIO fi_neg_button = {
-            .GPIO_Port = motor_fi_negative_button_GPIO_Port,
-            .GPIO_Pin = motor_fi_negative_button_Pin
-    };
-    s_GEN_GPIO z_pos_button = {
-            .GPIO_Port = motor_z_positive_button_GPIO_Port,
-            .GPIO_Pin = motor_z_positive_button_Pin
-    };
-    s_GEN_GPIO z_neg_button = {
-            .GPIO_Port = motor_z_negative_button_GPIO_Port,
-            .GPIO_Pin = motor_z_negative_button_Pin
-    };
+    u_MC_PS2response resp;
+	uint8_t pTxData[5] = {0x01, 0x42,0,0xff,0xff};
+	uint8_t pRxData[8] = {0};
+
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
@@ -904,12 +885,17 @@ void gpioControlTask(void *pvParameters)
             logInfo("Take control.");
         }
 
-        /* Axis control functions */
-        u8_MC_ControlMotor_viaGPIO_f(stepper_motors, MC_MOTORID_R, limit_switches, r_pos_button, r_neg_button);
-        u8_MC_ControlMotor_viaGPIO_f(stepper_motors, MC_MOTORID_PHI, limit_switches, fi_pos_button, fi_neg_button);
-        u8_MC_ControlMotor_viaGPIO_f(stepper_motors, MC_MOTORID_Z, limit_switches, z_pos_button, z_neg_button);
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+        HAL_SPI_TransmitReceive(&hspi3, pTxData, pRxData, MC_SPI_RXBUFFER_LENGTH, 10);
+    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
-        vTaskDelay(50);
+    	// SPI is configured for LSB
+    	resp.U = ((uint16_t)pRxData[4] << 8u) | (uint16_t)pRxData[3];
+
+    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_R, limit_switches,   resp.B.o, resp.B.x);
+    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_PHI, limit_switches, resp.B.left, resp.B.right);
+    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_Z, limit_switches,   resp.B.down, resp.B.up);
+
     }
 }
 
