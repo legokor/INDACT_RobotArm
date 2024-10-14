@@ -24,7 +24,7 @@
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
-#include "usb_otg.h"
+#include "usb_device.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -77,6 +77,7 @@ void MX_FREERTOS_Init(void);
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -113,7 +114,6 @@ int main(void)
   MX_UART5_Init();
   MX_UART8_Init();
   MX_I2C4_Init();
-  MX_USB_OTG_FS_PCD_Init();
   /* USER CODE BEGIN 2 */
     initLimitswitches();
     initStepperMotors();
@@ -136,13 +136,14 @@ int main(void)
   /* Init scheduler */
   osKernelInitialize();
 
-  /* Call init function for freertos objects (in freertos.c) */
+  /* Call init function for freertos objects (in cmsis_os2.c) */
   MX_FREERTOS_Init();
 
   /* Start scheduler */
   osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)

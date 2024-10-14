@@ -45,6 +45,8 @@
 #include "usart.h"
 #include "spi.h"
 
+#include "microros.h"
+
 #include "KAR_MC_handler.h"
 #include "WifiController/WifiController.h"
 #include "WifiController/SerialHelper.h"
@@ -192,6 +194,7 @@ static void setupWifi();
 
 void StartDefaultTask(void *argument);
 
+extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* Hook prototypes */
@@ -217,7 +220,7 @@ void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-
+    setup_microros_rtos();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -332,6 +335,8 @@ void MX_FREERTOS_Init(void) {
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
+  /* init code for USB_DEVICE */
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN StartDefaultTask */
     while (1)
     {
