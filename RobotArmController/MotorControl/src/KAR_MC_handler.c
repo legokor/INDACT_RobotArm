@@ -22,8 +22,8 @@
  * 																												*
  *****************************************************************************************************************/
 
-#include "MotorControl/KAR_MC_handler.h"
-#include "MotorControl/KAR_GEO_interface.h"
+#include "KAR_MC_handler.h"
+#include "KAR_GEO_interface.h"
 
 /****************************************************************************************************************
  * 																												*
@@ -407,4 +407,46 @@ e_MC_ErrorCode_t u8_MC_ControlMotor_viaGPIO_f (s_MC_StepperMotor *stepper_motors
 
 	return errorCode;
 }
+
+
+
+e_MC_ErrorCode_t u8_MC_HandlePS2Dir_f (s_MC_StepperMotor *stepper_motors, uint8_t motor_id, s_GEO_LimitSwitch* limit_switches,
+											   uint8_t pos_button_stat, uint8_t neg_button_stat)
+{
+	e_MC_ErrorCode_t errorCode = e_MC_ErrorCode_OK;
+
+	if (pos_button_stat && neg_button_stat)
+	{
+		v_MC_StopMotor_f(stepper_motors, motor_id);
+	}
+	else if (pos_button_stat)
+	{
+		if (!limit_switches[motor_id].max_point)
+		{
+			errorCode = u8_MC_StartMotor_f(stepper_motors, motor_id, MC_DIR_POSITIVE);
+		}
+		else
+		{
+			v_MC_StopMotor_f(stepper_motors, motor_id);
+		}
+	}
+	else if (neg_button_stat)
+	{
+		if (!limit_switches[motor_id].null_point)
+		{
+			errorCode = u8_MC_StartMotor_f(stepper_motors, motor_id, MC_DIR_NEGATIVE);
+		}
+		else
+		{
+			v_MC_StopMotor_f(stepper_motors, motor_id);
+		}
+	}
+	else
+	{
+		v_MC_StopMotor_f(stepper_motors, motor_id);
+	}
+
+	return errorCode;
+}
+
 /* End of file KAR_motor_handler.c */

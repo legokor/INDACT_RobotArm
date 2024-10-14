@@ -1,4 +1,4 @@
-#include "MotorControl/speed_control.h"
+#include "speed_control.h"
 
 #include <math.h>
 

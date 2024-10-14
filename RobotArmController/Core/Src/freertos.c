@@ -43,8 +43,9 @@
 #include "tim.h"
 #include "translation.h" // TODO: Solve naming conflicts.
 #include "usart.h"
+#include "spi.h"
 
-#include "MotorControl/KAR_MC_handler.h"
+#include "KAR_MC_handler.h"
 #include "WifiController/WifiController.h"
 #include "WifiController/SerialHelper.h"
 
@@ -69,7 +70,8 @@ typedef enum AppState
     AppState_Idle,
     AppState_DemoMoveControl,
     AppState_GpioControl,
-    AppState_WifiControl
+    AppState_WifiControl,
+	AppState_ps2Control
 } AppState_t;
 
 /* USER CODE END PTD */
@@ -86,6 +88,8 @@ typedef enum AppState
 #define DEMO_MOVE_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
 #define GPIO_CONTROL_TASK_STACK_SIZE 1024
 #define GPIO_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
+#define PS2_CONTROL_TASK_STACK_SIZE 1024
+#define PS2_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
 #define WIFI_CONTROL_TASK_STACK_SIZE 1024
 #define WIFI_CONTROL_TASK_PRIORITY TASK_PRIORITY_NORMAL
 #define SETUP_TASK_STACK_SIZE 1024
@@ -99,6 +103,7 @@ typedef enum AppState
 #define STATE_DEMO_MOVE_CONTROL_BIT (1 << 0)
 #define STATE_GPIO_CONTROL_BIT (1 << 1)
 #define STATE_WIFI_CONTROL_BIT (1 << 2)
+#define STATE_PS2_CONTROL_BIT (1 << 3)
 
 /* USER CODE END PD */
 
@@ -117,6 +122,9 @@ TaskHandle_t demoMoveControlTaskHandle = NULL;
 static StaticTask_t gpioControlTaskBuffer;
 static StackType_t gpioControlTaskStack[GPIO_CONTROL_TASK_STACK_SIZE];
 TaskHandle_t gpioControlTaskHandle = NULL;
+static StaticTask_t ps2ControlTaskBuffer;
+static StackType_t ps2ControlTaskStack[PS2_CONTROL_TASK_STACK_SIZE];
+TaskHandle_t ps2ControlTaskHandle = NULL;
 static StaticTask_t indicatorBlinkingTaskBuffer;
 static StackType_t indicatorBlinkingTaskStack[INDICATOR_BLINKING_TASK_STACK_SIZE];
 TaskHandle_t indicatorBlinkingTaskHandle = NULL;
@@ -166,6 +174,7 @@ const osThreadAttr_t defaultTask_attributes = {
 // Task functions
 void demoMoveControlTask(void *pvParameters);
 void gpioControlTask(void *pvParameters);
+void ps2ControlTask(void *pvParameters);
 void indicatorBlinkingTask(void *pvParameters);
 void setupTask(void *pvParameters);
 void wifiControlTask(void *pvParameters);
@@ -277,6 +286,16 @@ void MX_FREERTOS_Init(void) {
           gpioControlTaskStack,
           &gpioControlTaskBuffer);
     configASSERT(gpioControlTaskHandle != NULL);
+
+    ps2ControlTaskHandle = xTaskCreateStatic(
+          ps2ControlTask,
+          "ps2Control",
+          PS2_CONTROL_TASK_STACK_SIZE,
+          NULL,
+          PS2_CONTROL_TASK_PRIORITY,
+          ps2ControlTaskStack,
+          &ps2ControlTaskBuffer);
+    configASSERT(ps2ControlTaskHandle != NULL);
 
     wifiControlTaskHandle = xTaskCreateStatic(
           wifiControlTask,
@@ -433,6 +452,13 @@ static void changeAppStateFromISR(BaseType_t *pxHigherPriorityTaskWoken)
                 pxHigherPriorityTaskWoken);
         break;
     case AppState_WifiControl:
+        appState = AppState_ps2Control;
+        xEventGroupSetBitsFromISR(
+                stateEventGroupHandle,
+                STATE_PS2_CONTROL_BIT,
+                pxHigherPriorityTaskWoken);
+        break;
+    case AppState_ps2Control:
         appState = AppState_DemoMoveControl;
         xEventGroupSetBitsFromISR(
                 stateEventGroupHandle,
@@ -910,6 +936,62 @@ void gpioControlTask(void *pvParameters)
         u8_MC_ControlMotor_viaGPIO_f(stepper_motors, MC_MOTORID_Z, limit_switches, z_pos_button, z_neg_button);
 
         vTaskDelay(50);
+    }
+}
+
+
+/*
+ *===================================================================*
+ * Function name: ps2ControlTask
+ *-------------------------------------------------------------------
+ * Description:
+ * This task lets the user to control the arm via PS2 controller
+ *-------------------------------------------------------------------
+ */
+void ps2ControlTask(void *pvParameters)
+{
+    u_MC_PS2response resp;
+	uint8_t pTxData[5] = {0x01, 0x42,0,0xff,0xff};
+	uint8_t pRxData[8] = {0};
+
+
+    // Only enter the loop if the control is not taken by any of the other tasks
+    xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+    logInfo("Take control.");
+
+    while (1)
+    {
+        if (appState != AppState_ps2Control)
+        {
+            // Give up the control
+            xSemaphoreGive(controlMutexHandle);
+            logInfo("Give control.");
+
+            // Wait for the task specific wake-up event
+            xEventGroupWaitBits(
+                    stateEventGroupHandle,
+                    STATE_PS2_CONTROL_BIT,
+                    pdTRUE,
+                    pdTRUE,
+                    portMAX_DELAY);
+            logInfo("Wake-up.");
+
+            // Wait for the other tasks to give up control and take it
+            xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
+            logInfo("Take control.");
+        }
+
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+        HAL_SPI_TransmitReceive(&hspi3, pTxData, pRxData, MC_SPI_RXBUFFER_LENGTH, 10);
+    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+
+    	// SPI is configured for LSB
+    	resp.U = ((uint16_t)pRxData[4] << 8u) | (uint16_t)pRxData[3];
+
+    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_R, limit_switches,   resp.B.o, resp.B.x);
+    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_PHI, limit_switches, resp.B.left, resp.B.right);
+    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_Z, limit_switches,   resp.B.up, resp.B.down);
+
     }
 }
 
