@@ -1056,12 +1056,12 @@ void wifiControlTask(void *pvParameters)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    uint32_t last_tick = 0u;
+    static uint32_t last_tick = 0u;
 
     switch (GPIO_Pin)
     {
     case controller_mode_switch_Pin:
-        last_tick = 0u;
+
         if (debounce(&last_tick, 500))
         {
             changeAppStateFromISR(&xHigherPriorityTaskWoken);
