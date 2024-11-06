@@ -153,6 +153,7 @@ EventGroupHandle_t stateEventGroupHandle = NULL;
 
 // Other variables
 volatile AppState_t appState = AppState_Idle;
+volatile bool flagCancelMoveToPosition = false;
 
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
@@ -180,6 +181,7 @@ void setupTask(void *pvParameters);
 void wifiControlTask(void *pvParameters);
 void wifiReceiveTask(void *pvParameters);
 
+static inline void cancelMoveToPosition(void);
 static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken);
 static bool debounce(uint32_t *last_tick, uint32_t tick_count);
 static void handleButtonAction(const char *args);
@@ -427,6 +429,8 @@ static void homingSequence()
 
 static void changeAppStateFromISR(BaseType_t *pxHigherPriorityTaskWoken)
 {
+    cancelMoveToPosition();
+
     // Change the app state and wake up the appropriate task.
     switch (appState)
     {
@@ -490,6 +494,11 @@ static inline bool check_move_finished(const s_MC_StepperMotor *sm, const s_GEO_
             || (ls->null_point && (sm->dir == MC_DIR_NEGATIVE));
 }
 
+static inline void cancelMoveToPosition(void)
+{
+    flagCancelMoveToPosition = true;
+}
+
 static void moveToPosition(const PositionCylindrical_t *position)
 {
     vPortEnterCritical();
@@ -508,9 +517,20 @@ static void moveToPosition(const PositionCylindrical_t *position)
     bool phi_finished = false;
     bool z_finished = false;
 
+    flagCancelMoveToPosition = false;
+
     /* Wait for tool to reach next position */
     while (!(r_finished && phi_finished && z_finished))
     {
+        if (flagCancelMoveToPosition)
+        {
+            v_MC_StopMotor_f(stepper_motors, MC_MOTORID_R);
+            v_MC_StopMotor_f(stepper_motors, MC_MOTORID_PHI);
+            v_MC_StopMotor_f(stepper_motors, MC_MOTORID_Z);
+            flagCancelMoveToPosition = false;
+            break;
+        }
+
         if ((!r_finished) && check_move_finished(&(stepper_motors[MC_MOTORID_R]), &(limit_switches[MC_MOTORID_R])))
         {
             v_MC_StopMotor_f(stepper_motors, MC_MOTORID_R);
@@ -1029,9 +1049,7 @@ void wifiControlTask(void *pvParameters)
         PositionCylindrical_t position;
         if (xQueueReceive(nextPositionQueueHandle, &position, 200) == pdTRUE)
         {
-            logInfo(
-                    "Position received: (%ld, %ld, %ld).",
-                    position.r, position.phi, position.z);
+            logInfo("Position received: (%ld, %ld, %ld).", position.r, position.phi, position.z);
             moveToPosition(&position);
         }
     }
