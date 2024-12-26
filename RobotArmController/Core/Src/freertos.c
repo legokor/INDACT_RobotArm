@@ -35,6 +35,7 @@
 #include "queue.h"
 #include "semphr.h"
 
+#include "common_defs.h"
 #include "limitswitch.h"
 #include "logger.h"
 #include "mechanical_conf.h"
@@ -44,6 +45,7 @@
 #include "translation.h" // TODO: Solve naming conflicts.
 #include "usart.h"
 #include "spi.h"
+#include "wifi_task.h"
 
 #include "KAR_MC_handler.h"
 #include "WifiController/WifiController.h"
@@ -54,15 +56,6 @@
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-
-typedef int32_t MC_Step_t;
-
-typedef struct PositionCylindrical
-{
-    MC_Step_t r;
-    MC_Step_t phi;
-    MC_Step_t z;
-} PositionCylindrical_t;
 
 typedef enum AppState
 {
@@ -184,10 +177,8 @@ void wifiReceiveTask(void *pvParameters);
 static inline void cancelMoveToPosition(void);
 static void changeAppStateFromISR(BaseType_t *xHigherPriorityTaskWoken);
 static bool debounce(uint32_t *last_tick, uint32_t tick_count);
-static void handleButtonAction(const char *args);
 static void homingSequence();
 static void moveToPosition(const PositionCylindrical_t *position);
-static void sendNewPosition(const char *btn);
 static void setupWifi();
 
 /* USER CODE END FunctionPrototypes */
@@ -553,162 +544,6 @@ static void moveToPosition(const PositionCylindrical_t *position)
     }
 }
 
-static void sendNewPosition(const char *btn)
-{
-    PositionCylindrical_t position;
-    // Disable OS and interrupts while creating local copy of global data.
-    vPortEnterCritical();
-    position.r = stepper_motors[MC_MOTORID_R].currPos;
-    position.phi = stepper_motors[MC_MOTORID_PHI].currPos;
-    position.z = stepper_motors[MC_MOTORID_Z].currPos;
-    vPortExitCritical();
-
-    const MC_Step_t d = 100;
-
-    if (strncmp(btn, "rp", 2) == 0)
-    {
-        position.r += d;
-        if (position.r > MC_MAXPOS_R)
-        {
-            position.r = MC_MAXPOS_R;
-        }
-    }
-    else if (strncmp(btn, "rm", 2) == 0)
-    {
-        position.r -= d;
-        if (position.r < 0)
-        {
-            position.r = 0;
-        }
-    }
-    else if (strncmp(btn, "fp", 2) == 0)
-    {
-        position.phi += d;
-        if (position.phi > MC_MAXPOS_PHI)
-        {
-            position.phi = MC_MAXPOS_PHI;
-        }
-    }
-    else if (strncmp(btn, "fm", 2) == 0)
-    {
-        position.phi -= d;
-        if (position.phi < 0)
-        {
-            position.phi = 0;
-        }
-    }
-    else if (strncmp(btn, "zp", 2) == 0)
-    {
-        position.z += d;
-        if (position.phi > MC_MAXPOS_Z)
-        {
-            position.phi = MC_MAXPOS_Z;
-        }
-    }
-    else if (strncmp(btn, "zm", 2) == 0)
-    {
-        position.z -= d;
-        if (position.phi < 0)
-        {
-            position.phi = 0;
-        }
-    }
-    else if (strncmp(btn, "hx", 2) == 0)
-    {
-        position.r = 0;
-        position.phi = 0;
-        position.z = 0;
-    }
-
-    xQueueSend(nextPositionQueueHandle, &position, 10);
-}
-
-static void handleButtonAction(const char *args)
-{
-    // Use the default GUI of the Wi-Fi controller which provides simple buttons for moving the
-    // motors of the robotarm.
-    char btn[3] = { '\0' };
-
-    const char *arg_text = "btn=";
-    const size_t arg_text_length = 4;
-
-    char *p = strstr(args, arg_text);
-    if ((p != NULL) && (strlen(p) >= (arg_text_length + 2)))
-    {
-        strncpy(btn, p + arg_text_length, 2);
-        sendNewPosition(btn);
-    }
-    else
-    {
-        strcpy(btn, "xx");
-    }
-
-    logInfo("Button action: %s", btn);
-}
-
-const char *find_param_value(const char *message, const char *param_name)
-{
-    // TODO: This is just an arbitrary number. Further investigation needed!
-    #define MAX_PARAM_NAME_LENGTH 32
-
-    char pattern[MAX_PARAM_NAME_LENGTH + 2] = {'\0'};
-    snprintf(pattern, MAX_PARAM_NAME_LENGTH + 2, "%s=", param_name);
-    char *start = strstr(message, pattern);
-    if (!start)
-    {
-        return NULL;
-    }
-    return start + strlen(pattern);
-}
-
-static void handleCoordCylAction(const char *args)
-{
-    const char *param_r = "r";
-    const char *param_phi = "phi";
-    const char *param_z = "z";
-
-    PositionCylindrical_t position;
-    const char *param_value_ptr = NULL;
-    int param_value = 0;
-
-    param_value_ptr = find_param_value(args, param_r);
-    if (param_value_ptr != NULL)
-    {
-        sscanf(param_value_ptr, "%d", &param_value);
-        position.r = (param_value <= 0) ? 0 : (param_value > MOTOR_TOTAL_STEP_R) ? MOTOR_TOTAL_STEP_R : param_value;
-    }
-    else
-    {
-        position.r = param_value = 0;
-    }
-
-    param_value_ptr = find_param_value(args, param_phi);
-    if (param_value_ptr != NULL)
-    {
-        sscanf(param_value_ptr, "%d", &param_value);
-        position.phi = (param_value <= 0) ? 0 : (param_value > MOTOR_TOTAL_STEP_PHI) ? MOTOR_TOTAL_STEP_PHI : param_value;
-    }
-    else
-    {
-        position.phi = param_value = 0;
-    }
-
-    param_value_ptr = find_param_value(args, param_z);
-    if (param_value_ptr != NULL)
-    {
-        sscanf(param_value_ptr, "%d", &param_value);
-        position.z = (param_value <= 0) ? 0 : (param_value > MOTOR_TOTAL_STEP_Z) ? MOTOR_TOTAL_STEP_Z : param_value;
-    }
-    else
-    {
-        position.z = param_value = 0;
-    }
-
-    logInfo("Leap: (%ld, %ld, %ld)", position.r, position.phi, position.z);
-
-    xQueueSend(nextPositionQueueHandle, &position, 10);
-}
-
 static void setupWifi()
 {
     const char *ap_ssid = "indactrobot";
@@ -719,8 +554,7 @@ static void setupWifi()
     WifiController_ActionList_Add(action_list, "/coord/cyl", handleCoordCylAction);
 
     int count = 0;
-    while ((uxSemaphoreGetCount(wifiReceiveStartedFlagHandle) == 0)
-            && (count < 100))
+    while ((uxSemaphoreGetCount(wifiReceiveStartedFlagHandle) == 0) && (count < 100))
     {
         count++;
         vTaskDelay(10);
