@@ -1,5 +1,5 @@
 /**
- * @brief Implementation of the Wifi-Buttons-Task.
+ * @brief Implementation of the Wifi-Task.
  *
  * @author Péter Varga (petervarga0018@gmail.com)
  * @date 2024-12-26
@@ -168,17 +168,17 @@ static void send_new_position(const char *btn)
     else if (strncmp(btn, z_plus_btn, btn_id_length) == 0)
     {
         position.z += d;
-        if (position.phi > MC_MAXPOS_Z)
+        if (position.z > MC_MAXPOS_Z)
         {
-            position.phi = MC_MAXPOS_Z;
+            position.z = MC_MAXPOS_Z;
         }
     }
     else if (strncmp(btn, z_minus_btn, btn_id_length) == 0)
     {
         position.z -= d;
-        if (position.phi < 0)
+        if (position.z < 0)
         {
-            position.phi = 0;
+            position.z = 0;
         }
     }
     else if (strncmp(btn, homing_btn, btn_id_length) == 0)

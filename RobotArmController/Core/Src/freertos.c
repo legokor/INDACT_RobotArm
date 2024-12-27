@@ -64,7 +64,7 @@ typedef enum AppState
     AppState_DemoMoveControl,
     AppState_GpioControl,
     AppState_WifiControl,
-	AppState_ps2Control
+    AppState_ps2Control
 } AppState_t;
 
 /* USER CODE END PTD */
@@ -805,8 +805,8 @@ void gpioControlTask(void *pvParameters)
 void ps2ControlTask(void *pvParameters)
 {
     u_MC_PS2response resp;
-	uint8_t pTxData[5] = {0x01, 0x42,0,0xff,0xff};
-	uint8_t pRxData[8] = {0};
+    uint8_t pTxData[5] = {0x01, 0x42,0,0xff,0xff};
+    uint8_t pRxData[8] = {0};
 
 
     // Only enter the loop if the control is not taken by any of the other tasks
@@ -837,15 +837,14 @@ void ps2ControlTask(void *pvParameters)
 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
         HAL_SPI_TransmitReceive(&hspi3, pTxData, pRxData, MC_SPI_RXBUFFER_LENGTH, 10);
-    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
-    	// SPI is configured for LSB
-    	resp.U = ((uint16_t)pRxData[4] << 8u) | (uint16_t)pRxData[3];
+        // SPI is configured for LSB
+        resp.U = ((uint16_t)pRxData[4] << 8u) | (uint16_t)pRxData[3];
 
-    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_R, limit_switches,   resp.B.o, resp.B.x);
-    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_PHI, limit_switches, resp.B.left, resp.B.right);
-    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_Z, limit_switches,   resp.B.up, resp.B.down);
-
+        u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_R, limit_switches,   resp.B.o, resp.B.x);
+        u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_PHI, limit_switches, resp.B.left, resp.B.right);
+        u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_Z, limit_switches,   resp.B.up, resp.B.down);
     }
 }
 
