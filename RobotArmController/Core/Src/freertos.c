@@ -543,11 +543,14 @@ static void sendNewPosition(const char *btn)
     position.z = stepper_motors[MC_MOTORID_Z].currPos;
     vPortExitCritical();
 
-    const MC_Step_t d = 100;
+    // The press of a button moves the robot 1/20 of the full range along the specific axis.
+    const MC_Step_t inc_r = MC_MAXPOS_R / 20;
+    const MC_Step_t inc_phi = MC_MAXPOS_PHI / 20;
+    const MC_Step_t inc_z = MC_MAXPOS_Z / 20;
 
     if (strncmp(btn, "rp", 2) == 0)
     {
-        position.r += d;
+        position.r += inc_r;
         if (position.r > MC_MAXPOS_R)
         {
             position.r = MC_MAXPOS_R;
@@ -555,7 +558,7 @@ static void sendNewPosition(const char *btn)
     }
     else if (strncmp(btn, "rm", 2) == 0)
     {
-        position.r -= d;
+        position.r -= inc_r;
         if (position.r < 0)
         {
             position.r = 0;
@@ -563,7 +566,7 @@ static void sendNewPosition(const char *btn)
     }
     else if (strncmp(btn, "fp", 2) == 0)
     {
-        position.phi += d;
+        position.phi += inc_phi;
         if (position.phi > MC_MAXPOS_PHI)
         {
             position.phi = MC_MAXPOS_PHI;
@@ -571,7 +574,7 @@ static void sendNewPosition(const char *btn)
     }
     else if (strncmp(btn, "fm", 2) == 0)
     {
-        position.phi -= d;
+        position.phi -= inc_phi;
         if (position.phi < 0)
         {
             position.phi = 0;
@@ -579,18 +582,18 @@ static void sendNewPosition(const char *btn)
     }
     else if (strncmp(btn, "zp", 2) == 0)
     {
-        position.z += d;
-        if (position.phi > MC_MAXPOS_Z)
+        position.z += inc_z;
+        if (position.z > MC_MAXPOS_Z)
         {
-            position.phi = MC_MAXPOS_Z;
+            position.z = MC_MAXPOS_Z;
         }
     }
     else if (strncmp(btn, "zm", 2) == 0)
     {
-        position.z -= d;
-        if (position.phi < 0)
+        position.z -= inc_z;
+        if (position.z < 0)
         {
-            position.phi = 0;
+            position.z = 0;
         }
     }
     else if (strncmp(btn, "hx", 2) == 0)
