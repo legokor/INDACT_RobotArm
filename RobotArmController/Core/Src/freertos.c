@@ -955,9 +955,8 @@ void gpioControlTask(void *pvParameters)
 void ps2ControlTask(void *pvParameters)
 {
     u_MC_PS2response resp;
-	uint8_t pTxData[5] = {0x01, 0x42,0,0xff,0xff};
-	uint8_t pRxData[8] = {0};
-
+    uint8_t pTxData[5] = {0x01, 0x42, 0, 0xff, 0xff};
+    uint8_t pRxData[8] = {0};
 
     // Only enter the loop if the control is not taken by any of the other tasks
     xSemaphoreTake(controlMutexHandle, portMAX_DELAY);
@@ -987,15 +986,16 @@ void ps2ControlTask(void *pvParameters)
 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
         HAL_SPI_TransmitReceive(&hspi3, pTxData, pRxData, MC_SPI_RXBUFFER_LENGTH, 10);
-    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
-    	// SPI is configured for LSB
-    	resp.U = ((uint16_t)pRxData[4] << 8u) | (uint16_t)pRxData[3];
+        // SPI is configured for LSB
+        resp.U = ((uint16_t)pRxData[4] << 8u) | (uint16_t)pRxData[3];
 
-    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_R, limit_switches,   resp.B.o, resp.B.x);
-    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_PHI, limit_switches, resp.B.left, resp.B.right);
-    	u8_MC_HandlePS2Dir_f (stepper_motors, MC_MOTORID_Z, limit_switches,   resp.B.up, resp.B.down);
+        u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_R, limit_switches, resp.B.o, resp.B.x);
+        u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_PHI, limit_switches, resp.B.left, resp.B.right);
+        u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_Z, limit_switches, resp.B.up, resp.B.down);
 
+        vTaskDelay(10);
     }
 }
 
@@ -1033,9 +1033,7 @@ void wifiControlTask(void *pvParameters)
         PositionCylindrical_t position;
         if (xQueueReceive(nextPositionQueueHandle, &position, 200) == pdTRUE)
         {
-            logInfo(
-                    "Position received: (%ld, %ld, %ld).",
-                    position.r, position.phi, position.z);
+            logInfo("Position received: (%ld, %ld, %ld).", position.r, position.phi, position.z);
             moveToPosition(&position);
         }
     }
@@ -1059,12 +1057,11 @@ void wifiControlTask(void *pvParameters)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    uint32_t last_tick = 0u;
+    static uint32_t last_tick = 0u;
 
     switch (GPIO_Pin)
     {
     case controller_mode_switch_Pin:
-        last_tick = 0u;
         if (debounce(&last_tick, 500))
         {
             changeAppStateFromISR(&xHigherPriorityTaskWoken);
