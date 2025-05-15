@@ -192,10 +192,6 @@ void Error_Handler(void);
 #define Servo1_button_curl_GPIO_Port GPIOC
 #define Servo1_button_straighten_Pin GPIO_PIN_9
 #define Servo1_button_straighten_GPIO_Port GPIOC
-#define USB_SOF_Pin GPIO_PIN_8
-#define USB_SOF_GPIO_Port GPIOA
-#define USB_VBUS_Pin GPIO_PIN_9
-#define USB_VBUS_GPIO_Port GPIOA
 #define USB_ID_Pin GPIO_PIN_10
 #define USB_ID_GPIO_Port GPIOA
 #define USB_DM_Pin GPIO_PIN_11
