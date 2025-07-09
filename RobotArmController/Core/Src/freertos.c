@@ -985,17 +985,35 @@ void ps2ControlTask(void *pvParameters)
         }
 
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-        HAL_SPI_TransmitReceive(&hspi3, pTxData, pRxData, MC_SPI_RXBUFFER_LENGTH, 10);
+        HAL_StatusTypeDef spi_status = HAL_SPI_TransmitReceive(&hspi3, pTxData, pRxData, MC_SPI_RXBUFFER_LENGTH, 10);
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
-        // SPI is configured for LSB
-        resp.U = ((uint16_t)pRxData[4] << 8u) | (uint16_t)pRxData[3];
+        switch (spi_status)
+        {
+        case HAL_OK:
+            // SPI is configured for LSB
+            resp.U = ((uint16_t)pRxData[4] << 8u) | (uint16_t)pRxData[3];
+            break;
+        case HAL_TIMEOUT:
+            // The controller is not responding, set everything to zero to stop motors
+            resp.U = 0;
+            break;
+        default:
+            // There was an unexpected error in the SPI communication, set everything to zero to stop motors
+            resp.U = 0;
+            u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_R, limit_switches, resp.B.o, resp.B.x);
+            u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_PHI, limit_switches, resp.B.left, resp.B.right);
+            u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_Z, limit_switches, resp.B.up, resp.B.down);
+            logError("SPI error!");
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            continue;
+        }
 
         u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_R, limit_switches, resp.B.o, resp.B.x);
         u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_PHI, limit_switches, resp.B.left, resp.B.right);
         u8_MC_HandlePS2Dir_f(stepper_motors, MC_MOTORID_Z, limit_switches, resp.B.up, resp.B.down);
 
-        vTaskDelay(10);
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
